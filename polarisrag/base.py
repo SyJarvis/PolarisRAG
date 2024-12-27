@@ -60,6 +60,12 @@ class BaseVectorDB(ABC):
         """Access the query embedding object if available"""
         return None
 
+    @abstractmethod
+    def check(self) -> bool:
+        """
+        检查状态是否可用
+        """
+
 
 class BaseEmbedding(ABC):
     """
