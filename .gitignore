@@ -1,0 +1,17 @@
+__pycache__
+*.egg-info
+dickens/
+polarisrag_dev/
+.idea/
+dist/
+env/
+ignore_this.txt
+.venv/
+*.ignore.*
+.ruff_cache/
+gui/
+*.log
+examples/db
+examples/documents
+.env
+assets/
