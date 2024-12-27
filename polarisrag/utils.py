@@ -7,6 +7,7 @@ from PyPDF2 import PdfReader
 from typing import List, Dict
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import json
+import yaml
 
 
 @dataclass
@@ -108,10 +109,29 @@ class FolderLoader:
 def load_json(file_name):
     if not os.path.exists(file_name):
         return None
-    with open(file_name, "r", encoding='utf-8') as f:
-        return json.load(f)
-
+    try:
+        with open(file_name, "r", encoding='utf-8') as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+            else:
+                return None
+    except json.JSONDecodeError:
+        return None
 
 def write_json(json_obj, file_name):
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(json_obj, f, indent=2, ensure_ascii=False)
+
+def load_yaml(file_name: str) -> dict:
+    if not os.path.exists(file_name):
+        return None
+    try:
+        with open(file_name, "r", encoding='utf-8')as f:
+            data = yaml.safe_load(f)
+            if isinstance(data, dict):
+                return data
+            else:
+                return None
+    except yaml.YAMLError as e:
+        return None
