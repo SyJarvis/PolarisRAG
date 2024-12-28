@@ -39,6 +39,11 @@ from .prompt import (
     SystemPromptTemplate
 )
 
+from .const import (
+    DEFAULT_LLM_MODEL,
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_VECTOR_STORAGE
+)
 
 @dataclass
 class PolarisRAG:
@@ -50,15 +55,15 @@ class PolarisRAG:
     )
 
     vector_storage: Union[BaseVectorDB, Dict] = field(
-        default_factory=lambda: "VectorDB"
+        default_factory=lambda: DEFAULT_VECTOR_STORAGE
     )
 
     embedding_model: Union[BaseEmbedding, Dict] = field(
-        default_factory=lambda: "ZhipuEmbedding"
+        default_factory=lambda: DEFAULT_EMBEDDING_MODEL
     )
 
     llm_model: Union[BaseLLM, Dict] = field(
-        default_factory=lambda: "ZhipuLLM"
+        default_factory=lambda: DEFAULT_LLM_MODEL
     )
 
     role: Union[SystemPromptTemplate, str] = field(
@@ -95,8 +100,7 @@ class PolarisRAG:
         return self.llm_model.chat(prompt)
 
     def init_rag(self):
-        # 加载模型
-        # 判断是否有向量数据库
+        # 加载默认模型
         if isinstance(self.embedding_model, BaseEmbedding):
             if "embedding_model" in self.config:
                 del self.config["embedding_model"]
@@ -121,10 +125,13 @@ class PolarisRAG:
                 if "class_name" not in value and "class_param" not in value:
                     raise Exception("class_name and class_param must be in the config file")
 
+            embedding_dict["class_param"] = embedding_dict["class_param"] if "class_param" in embedding_dict else {}
+            llm_dict["class_param"] = llm_dict["class_param"] if "class_param" in llm_dict else {}
+            vector_dict["class_param"] = vector_dict["class_param"] if "class_param" in vector_dict else {}
             self.embedding_model = self.get_embedding_model_instance(embedding_dict["class_name"], **embedding_dict["class_param"])
             self.llm_model = self.get_llm_model_instance(llm_dict["class_name"], **llm_dict["class_param"])
+            vector_dict["class_param"]["embedding_model"] = self.embedding_model
             self.vector_storage = self.get_vector_storage_instance(vector_dict["class_name"], **vector_dict["class_param"])
-            self.vector_storage.init_embedding_model(self.embedding_model)
         except Exception as e:
             raise Exception(f"init_rag error: {e}")
 
@@ -187,7 +194,7 @@ class PolarisRAG:
     def get_vector_storage_instance(self, key: str, **kwargs):
         storage_dict = self._get_vector_storage()
         if key in storage_dict:
-            return storage_dict[key](**kwargs)
+            return storage_dict[key](kwargs)
         else:
             raise Exception(f"Vector storage {key} not found")
 
