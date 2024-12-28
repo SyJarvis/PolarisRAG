@@ -1,5 +1,5 @@
 <center><h2>🚀 PolarisRAG: Fast and Easy Retrieval-Augmented Generation</h2></center>
-![polarisRAG](assets/polarisRAG.png)
+![polarisRAG](https://i-blog.csdnimg.cn/direct/01df3c092a8e486cac8aa2b208b1f471.png#pic_center)
 
 ## Install
 
