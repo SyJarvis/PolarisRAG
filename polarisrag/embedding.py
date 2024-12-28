@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 from torch import Tensor
-
-from .base import BaseEmbedding
-
+from sentence_transformers import SentenceTransformer
 import os
 from zhipuai import ZhipuAI
 from openai import OpenAI, Embedding
@@ -18,7 +16,7 @@ from dataclasses import dataclass
 from transformers import AutoTokenizer, AutoModel
 import torch
 
-
+from .base import BaseEmbedding
 class ZhipuEmbedding(BaseEmbedding):
 
     def __init__(
@@ -90,7 +88,6 @@ class OpenAIEmbedding(BaseEmbedding):
 
         self.client = Embedding.create(
             model="text-embedding-ada-002",
-
         )
 
     def embed_text(self, content: str) -> List[float]:
@@ -105,24 +102,17 @@ class HFEmbedding(BaseEmbedding, ABC):
     huggingface_embedding
     """
 
-    def __init__(self, pretrained_model_path: str = None) -> None:
-        self.pretrained_model_path = pretrained_model_path
-
-    @classmethod
-    def from_pretrained(cls, pretrained_model_path, *inputs, **kwargs):
-        r"""
-
-        """
-        cls.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_path, *inputs, **kwargs)
-        cls.model = AutoModel.from_pretrained(pretrained_model_path, *inputs, **kwargs)
-        return cls(pretrained_model_path)
+    def __init__(self, pretrain_dir: str = None, *inputs, **kwargs) -> None:
+        self.pretrained_model_path = pretrain_dir
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrain_dir, *inputs, **kwargs)
+        self.model = AutoModel.from_pretrained(pretrain_dir, *inputs, **kwargs)
 
     def embed_text(self, content: str, **kwargs) -> List[float]:
         """
         编码文本
         """
         if isinstance(content, str):
-            contents = [content]
+            contents = [content.strip()]
         else:
             raise Exception("content must be str")
 
@@ -138,9 +128,9 @@ class HFEmbedding(BaseEmbedding, ABC):
         """
         padding=True, truncation=True, return_tensors='pt'
         """
-        encoded_input = HFEmbedding.tokenizer(contents, **kwargs)
+        encoded_input = self.tokenizer(contents, padding=True, truncation=True, return_tensors='pt')
         with torch.no_grad():
-            model_output = HFEmbedding.model(**encoded_input)
+            model_output = self.model(**encoded_input)
             sentence_embeddings = model_output[0][:, 0]
         sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
         return sentence_embeddings
@@ -153,13 +143,18 @@ class HFEmbedding(BaseEmbedding, ABC):
 
 
 @dataclass
-class BGEEmbedding(HFEmbedding):
+class BGEEmbedding(BaseEmbedding):
     """
 
     """
-    def __init__(self, model_dir="moka-ai/m3e-base"):
-        super().__init__(model_dir=model_dir)
-        self.tokenizer = AutoTokenizer.from_pretrained()
+    def __init__(
+            self,
+            model_name_or_path: str = "BAAI/bge-small-en-v1.5"):
+        self.model_name_or_path = model_name_or_path
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+    def init(self):
+        self.model = AutoModel.from_pretrained(self.model_name_or_path)
+        self.model.eval()
 
     def embed_text(self, content: str) -> List[float]:
         pass
@@ -168,10 +163,7 @@ class BGEEmbedding(HFEmbedding):
         pass
 
 
-class AutoEmbedding:
 
-    def __init__(self):
-        pass
 
 
 
