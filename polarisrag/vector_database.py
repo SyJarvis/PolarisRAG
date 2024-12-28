@@ -2,12 +2,13 @@
 from tqdm import tqdm
 from typing import (
     List,
-    Dict
+    Dict,
+    Union
 )
 import os
 import json
 import numpy as np
-
+from .const import MilvusDB_CONF
 from .base import BaseVectorDB, BaseEmbedding
 
 
@@ -57,22 +58,28 @@ class VectorDB(BaseVectorDB):
 
 from pymilvus import MilvusClient
 from tqdm import tqdm
+import json
+
+
 class MilvusDB(BaseVectorDB):
     """
-
+    向量数据库
     """
-    def __init__(self, db_file=None):
-        if db_file is None:
-            db_file = "milvus_data.db"
-        self.client = MilvusClient(uri=db_file)
-        self.embedding_dim = None
+    def __init__(self, config: Union[Dict, None]=None):
+        if config is None:
+            config = {}
+        self.db_file = config["db_file"] if "db_file" in config else MilvusDB_CONF["db_file"]
+        self.client = MilvusClient(uri=self.db_file)
+        self.embedding_dim = config["embedding_dim"] if "embedding_dim" in config else MilvusDB_CONF["embedding_dim"]
+        self.collection_name = config["collection_name"] if "collection_name" in config else MilvusDB_CONF["collection_name"]
         self.embedding_model = None
 
-    def init(self, embedding_model=None):
+    def init_embedding_model(self, embedding_model=None):
         """初始化"""
         assert self.embedding_model is None, "embedding_model has been initialized"
         if not isinstance(embedding_model, BaseEmbedding):
             raise Exception("embedding_model must be an instance")
+        self.embedding_dim = len(embedding_model.embed_text("这是一个测试文本"))
         self.embedding_model = embedding_model
 
     def get_text_vector(self, text: str) -> Dict:
@@ -85,20 +92,83 @@ class MilvusDB(BaseVectorDB):
         }
         return text_vector_dict
 
-    def insert(self, collection_name: str, docs: List[str], **kwargs):
+    def create_collection(self, collection_name: str=None, embedding_dim:int=None,
+                          metric_type="IP",
+                          consistency_level="Strong",
+                          *args, **kwargs):
+        """创建collection"""
+        assert isinstance(self.client, MilvusClient), "client must be an instance of MilvusClient"
+        embedding_dim = self.embedding_dim if embedding_dim is None else embedding_dim
+        collection_name = self.collection_name if collection_name is None else collection_name
+        if self.client.has_collection(collection_name):
+            self.client.drop_collection(collection_name)
+        try:
+            self.client.create_collection(collection_name=collection_name,
+                                          dimension=embedding_dim,
+                                          metric_type=metric_type,
+                                          consistency_level=consistency_level)
+            return True
+        except Exception as e:
+            return False
+
+    def insert(self, docs: List[str], collection_name: Union[str, None] = None, **kwargs) -> int:
         """插入数据"""
+        assert len(docs) > 0, "docs must be a list and length must be greater than 0"
+        collection_name = self.collection_name if collection_name is None else collection_name
+        if not self.is_exists_collection(collection_name):
+            self.create_collection(collection_name)
+        assert isinstance(self.client, MilvusClient), "client must be an instance of MilvusClient"
         desc = kwargs["desc"] if "desc" in kwargs else "Creating embeddings"
         data = []
         for i, line in enumerate(tqdm(docs, desc=desc)):
-            data.append({"id": i}.update(self.get_text_vector(line)))
+            data_dict = self.get_text_vector(line)
+            data_dict["id"] = i
+            data.append(data_dict)
+
         insert_res = self.client.insert(collection_name=collection_name, data=data)
+        insert_count = insert_res["insert_count"]
+        return insert_count
 
+    def query(self, question: str, collection_name:str=None, limit: int=None,
+               search_params=None, output_fields=None, *args, **kwargs):
+        assert isinstance(self.client, MilvusClient), "client must be an instance of MilvusClient"
+        collection_name = self.collection_name if collection_name is None else collection_name
+        if not self.is_exists_collection(collection_name):
+            raise Exception("not this collection_name")
+        limit = MilvusDB_CONF['limit'] if limit is None else limit
+        search_params = MilvusDB_CONF['search_params'] if search_params is None else search_params
+        output_fields = MilvusDB_CONF['output_fields'] if output_fields is None else output_fields
+        data = [self.embedding_model.embed_text(question)]
+        search_res = self.client.search(
+            collection_name=collection_name,
+            data=data,
+            limit=limit,
+            search_params=search_params,
+            output_fields=output_fields
+        )
+        retrieved_lines_with_distances = [
+            (res["entity"]["text"], res["distance"]) for res in search_res[0]
+        ]
+        context = "\n".join([line_with_distance[0] for line_with_distance in retrieved_lines_with_distances])
+        return context
 
+    def get_all_collections(self):
+        return self.client.list_collections()
 
+    def set_collection_name(self, collection_name:str):
+        self.collection_name = collection_name
 
-    def query(self, content: str, limit: int = 3) -> str:
-        pass
+    def is_exists_collection(self, collection_name:str):
+        if self.client.has_collection(collection_name):
+            return True
+        else:
+            return False
 
-
-
-
+    def check(self) -> bool:
+        """检查状态"""
+        if self.embedding_model is None:
+            raise Exception("embedding_model is None, you must be run init_embedding_model() first")
+        if self.is_exists_collection(MilvusDB_CONF["collection_name"]):
+            return True
+        else:
+            return False
