@@ -61,26 +61,27 @@ Use PolarisRAG through a dictionary configuration
 ```python
 from polarisrag import PolarisRAG
 WORKING_DIR = "documents"
-conf_dict2 = {
-    "embedding_model": {
-        "class_name": "HFEmbedding",
-        "class_param": {
-            "pretrain_dir": '/root/.cache/modelscope/hub/BAAI/bge-large-zh-v1___5'
-        }
-    },
-    "vector_storage": {
-        "class_name": "MilvusDB",
-        "class_param": {}
-    },
-    "llm_model": {
-        "class_name": "ZhipuLLM",
-        "class_param": {
-            "model": "glm-4-flash",
-            "is_memory": "True"
-        }
+embedding_conf = {
+    "class_name": "HFEmbedding",
+    "class_param": {
+        "pretrain_dir": '/root/.cache/modelscope/hub/BAAI/bge-large-zh-v1___5'
     }
 }
-rag = PolarisRAG(working_dir=WORKING_DIR, **conf_dict2)
+vector_conf = {
+    "class_name": "MilvusDB",
+    "class_param": {}
+}
+llm_model_conf = {
+    "class_name": "ZhipuLLM",
+    "class_param": {
+        "model": "glm-4-flash",
+        "is_memory": "True"
+    }
+}
+rag = PolarisRAG(working_dir=WORKING_DIR,
+                 embedding_model=embedding_conf,
+                 vector_storage=vector_conf,
+                 llm_model=llm_model_conf)
 rag.init_rag()
 with open("documents/test.txt", 'r') as f:
     rag.insert(f.read())
@@ -88,6 +89,39 @@ result = rag.chat("什么是BERT")
 print(result)
 result = rag.chat("如何下载BERT-base-chinese预训练模型")
 print(result)
+```
+Introduce components for use
+```python
+import os
+from polarisrag import PolarisRAG
+from polarisrag.embedding import ZhipuEmbedding
+from polarisrag.vector_database import MilvusDB
+from polarisrag.llm import ZhipuLLM
+from polarisrag.utils import FolderLoader
+
+# api_key
+ZHIPUAI_API_KEY = ""
+# 工作空间
+WORKING_DIR = "documents"
+embedding_model = ZhipuEmbedding(api_key=ZHIPUAI_API_KEY)
+llm_model = ZhipuLLM(api_key=os.getenv("ZHIPUAI_API_KEY"))
+loader = FolderLoader(folder_path=WORKING_DIR)
+docs = loader.get_all_chunk_content()
+vector_db = MilvusDB({"embedding_model": embedding_model})
+# 创建集合
+vector_db.create_collection("default")
+vector_db.insert(docs=docs)
+rag = PolarisRAG(
+    working_dir=WORKING_DIR,
+    embedding_model=embedding_model,
+    vector_storage=vector_db,
+    llm_model=llm_model,
+    is_memory=True
+)
+
+print(
+    rag.chat("什么是BERT")
+)
 ```
 
 
