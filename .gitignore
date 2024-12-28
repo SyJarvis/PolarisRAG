@@ -14,4 +14,3 @@ gui/
 examples/db
 examples/documents
 .env
-assets/
