@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "polarisrag"
 version = "0.0.1"
-description = ""
+description = "PolarisRAG: Fast and Easy Retrieval-Augmented Generation"
 authors = ["SyJarvis <1755115828@qq.com>"]
 readme = "README.md"
 
