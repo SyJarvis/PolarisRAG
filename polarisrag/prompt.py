@@ -30,3 +30,10 @@ class ChatPromptTemplate:
         messages: Sequence[List[str]]
     ) -> None:
         pass
+
+
+class SystemPromptTemplate:
+    """
+        系统提示模板
+    """
+    pass
