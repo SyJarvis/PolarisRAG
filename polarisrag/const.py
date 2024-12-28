@@ -11,3 +11,21 @@ MilvusDB_CONF = {
     "output_fields": ["text"],
     "limit": 3
 }
+
+DEFAULT_LLM_MODEL = {
+    "class_name": "ZhipuLLM",
+    "class_param": {
+        "model": "glm-4-flash"
+    }
+}
+
+DEFAULT_EMBEDDING_MODEL = {
+    "from": "ZHIPUAI",
+    "class_name": "ZhipuEmbedding",
+    "class_param": {}
+}
+
+DEFAULT_VECTOR_STORAGE = {
+    "class_name": "MilvusDB",
+    "class_param": {}
+}
