@@ -100,6 +100,11 @@ class BaseEmbedding(ABC):
         """
         pass
 
+    def check(self) -> bool:
+        """
+        检查
+        """
+
 
 class BaseChatPromptTemplate(ABC):
     """聊天提示模板类"""
