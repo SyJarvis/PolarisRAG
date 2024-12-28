@@ -70,17 +70,19 @@ class MilvusDB(BaseVectorDB):
             config = {}
         self.db_file = config["db_file"] if "db_file" in config else MilvusDB_CONF["db_file"]
         self.client = MilvusClient(uri=self.db_file)
-        self.embedding_dim = config["embedding_dim"] if "embedding_dim" in config else MilvusDB_CONF["embedding_dim"]
         self.collection_name = config["collection_name"] if "collection_name" in config else MilvusDB_CONF["collection_name"]
-        self.embedding_model = None
+        self.embedding_model = config["embedding_model"] if "embedding_model" in config else None
+        if self.embedding_model is None:
+            raise Exception("embedding_model must be specified")
+        self.embedding_dim = config["embedding_dim"] if "embedding_dim" in config else len(self.embedding_model.embed_text("this is a test"))
 
-    def init_embedding_model(self, embedding_model=None):
-        """初始化"""
-        assert self.embedding_model is None, "embedding_model has been initialized"
-        if not isinstance(embedding_model, BaseEmbedding):
-            raise Exception("embedding_model must be an instance")
-        self.embedding_dim = len(embedding_model.embed_text("这是一个测试文本"))
-        self.embedding_model = embedding_model
+    def set_embedding_model(self, embedding_model: BaseEmbedding):
+        if isinstance(embedding_model, BaseEmbedding):
+            try:
+                self.embedding_model = embedding_model
+                self.embedding_dim = len(self.embedding_model.embed_text("this is a test"))
+            except Exception as e:
+                raise Exception("embedding_model must be an instance of BaseEmbedding")
 
     def get_text_vector(self, text: str) -> Dict:
         """
