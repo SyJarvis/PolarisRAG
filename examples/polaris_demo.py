@@ -4,8 +4,8 @@ load_dotenv(find_dotenv(), override=True)
 
 import os
 from polarisrag import PolarisRAG
-from polarisrag.embedding import ZhipuEmbedding, HFEmbedding
-from polarisrag.vector_database import VectorDB, MilvusDB
+from polarisrag.embedding import ZhipuEmbedding
+from polarisrag.vector_database import MilvusDB
 from polarisrag.llm import ZhipuLLM
 from polarisrag.utils import FolderLoader
 # api_key
