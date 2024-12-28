@@ -8,7 +8,8 @@ from typing import List, Dict
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import json
 import yaml
-
+# 引入langchain的文件处理方法
+from rapidocr_onnxruntime import RapidOCR
 
 @dataclass
 class FolderLoader:
@@ -44,22 +45,32 @@ class FolderLoader:
                 chunks = self.split_documents(content)
                 docs.extend(chunks)
         return docs
-
-    def split_documents(cls, text: str, chunk_size: int=1000) -> List[str]:
-        numbered_line_pattern = re.compile(r'^\d+\.[\d, \s]*')
+    def _split_text_by_length(self, text: str, length=100):
         chunks = []
         lines = text.split("\n")
         content = ''
         for line in lines:
-            if numbered_line_pattern.match(line):
-                if content == '':
-                    content += line
-                else:
-                    chunks.append(content)
-                    content = line
-            else:
+            # if numbered_line_pattern.match(line):
+            #     if content == '':
+            #         content += line
+            #     else:
+            #         content = content.replace(" ", "")
+            #         chunks.append(content)
+            #         content = line
+            # else:
+            #     content += line
+            line = line.replace(" ", "")
+            line = line.strip()
+            if len(content) < length:
                 content += line
+            else:
+                chunks.append(content)
+                content = ''
+        return chunks
 
+    def split_documents(cls, text: str, chunk_size: int=100) -> List[str]:
+        # numbered_line_pattern = re.compile(r'^\d+\.[\d, \s]*')
+        chunks = cls._split_text_by_length(text, chunk_size)
         return chunks
 
     def read_file_content(self, ext, file_list):
@@ -79,12 +90,33 @@ class FolderLoader:
             text_content.append(page.extract_text())
         return "\n".join(text_content)
 
+    def read_txt(self, file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            docs = f.read()
+        return docs
+
+    def read_md_file(self, file_path):
+        docs = self.read_txt(file_path)
+        return docs
+
+    def read_jpg_file(self, file_path):
+        ocr = RapidOCR()
+        result, _ = ocr(file_path)
+        docs = ""
+        if result:
+            ocr_result = [line[1] for line in result]
+            docs += "\n".join(ocr_result)
+        return docs
+
     def __post_init__(self):
         if not os.path.exists(self.folder_path):
             raise Exception("folder not exist")
         self.file_path_list = self.__file_list(self.folder_path)
         self.ext_func_dict = {
-            "pdf": self.read_pdf
+            "pdf": self.read_pdf,
+            "txt": self.read_txt,
+            "md": self.read_md_file,
+
         }
         self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size,
                                                             chunk_overlap=self.chunk_overlap)
