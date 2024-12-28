@@ -21,18 +21,17 @@ class ZhipuEmbedding(BaseEmbedding):
 
     def __init__(
         self,
-        api_key: str = "",
-        model_name="embedding-2",
-        name: str=None
+        api_key: str = None,
+        model_name="embedding-2"
     ) -> None:
-        if api_key:
-            self.api_key = api_key
-        else:
+        if api_key is None:
             self.api_key = os.getenv("ZHIPUAI_API_KEY")
-        self.model_supplier = "ZHIPUAI"
+        else:
+            self.api_key = api_key
         self.model_name = model_name
-        self.embedding_model = ZhipuAI(api_key=api_key)
-        self.name = name
+        self.embedding_model = ZhipuAI(api_key=self.api_key)
+        # 确保embedding可以使用
+        self.check()
 
     def embed_text(self, content: str = "", model_name=None):
         if len(content) <= 0:
@@ -42,6 +41,13 @@ class ZhipuEmbedding(BaseEmbedding):
             input=content  # 填写需要计算的文本内容,
         )
         return response.data[0].embedding
+
+    def check(self):
+        try:
+            self.embed_text("this is a test")
+            return True
+        except Exception as e:
+            raise Exception(e)
 
     def embed_documents(self, content_list: List[str], model_name=None):
         assert len(content_list) > 0, "content length must be equal 1"
