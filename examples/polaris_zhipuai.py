@@ -3,7 +3,7 @@ import os
 # 加载api_key
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(), override=True)
-os.environ["ZHIPUAI_API_KEY"] = "fb8a7db01584a5264bd4e11e242832f5.R9NuV9SxI3hxl6Rd"
+os.environ["ZHIPUAI_API_KEY"] = ""
 
 from polarisrag import PolarisRAG
 # 定义工作空间
