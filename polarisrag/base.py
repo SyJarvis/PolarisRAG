@@ -21,19 +21,17 @@ class BaseFileReader:
 
 
 class BaseLLM(ABC):
-
-    # client: Any = None
-    #
-    # model: str = None
-    #
-    # base_url: str = None
-    #
-    # api_key: str = None
+    """
+    baseLLM
+    """
 
     def __init__(self, model: str, api_key: str, base_url: str = None):
         """
 
         """
+        self.model = model
+        self.api_key = api_key
+        self.base_url = base_url
 
     @abstractmethod
     def chat(self, content: str, history: List[Dict[BaseMessage, BaseMessage]] = None) -> str:
@@ -43,6 +41,9 @@ class BaseLLM(ABC):
 
     def stream(self, content: str, history: List[Dict[str, str]] = None):
         pass
+
+    def set_system_prompt(self, prompt: str):
+        self.system_prompt = prompt
 
 
 class BaseVectorDB(ABC):
