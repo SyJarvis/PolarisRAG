@@ -4,7 +4,8 @@ import os
 from typing import (
     Dict,
     Union,
-    Type
+    Type,
+    List
 )
 from dataclasses import dataclass,asdict,field
 from datetime import datetime
@@ -15,7 +16,8 @@ from .base import (
 )
 
 from .llm import (
-    ZhipuLLM
+    ZhipuLLM,
+    OpenAILLM
 )
 
 from .embedding import (
@@ -70,8 +72,6 @@ class PolarisRAG:
         default_factory=lambda: DEFAULT_TEMPLATE
     )
 
-    is_memory: bool = False
-
     def __post_init__(self):
         # 加载配置文件
         self.config = {
@@ -86,18 +86,41 @@ class PolarisRAG:
         # 加载文件处理器
         self.file_loader = FolderLoader(folder_path=self.working_dir)
 
-    def chat(self, question: str, system_prompt=None, history_messages=None, **kwargs) -> str:
+    def chat(self, content: Union[Dict, str], system_prompt=None, history_messages=None, **kwargs) -> str:
         """
         聊天
         """
-        if system_prompt is None:
-            global DEFAULT_TEMPLATE
-            system_prompt = DEFAULT_TEMPLATE
-        context = self.vector_storage.query(question)
-        prompt = system_prompt.format(context=context, question=question)
-        if history_messages is None:
-            history_messages = []
-        return self.llm_model.chat(prompt)
+        # 处理图片
+        if isinstance(content, str):
+            if system_prompt is None:
+                global DEFAULT_TEMPLATE
+                system_prompt = DEFAULT_TEMPLATE
+            context = self.vector_storage.query(content)
+            if context:
+                prompt = system_prompt.format(context=context, question=content)
+            else:
+                prompt = content
+            if history_messages is None:
+                history_messages = []
+            return self.llm_model.chat(prompt)
+        elif isinstance(content, Dict):
+            text = content["text"] if "text" in content else None
+            image = content["image"] if "image" in content else None
+            video = content["video"] if "video" in content else None
+            file_data = {}
+            if text is None:
+                raise Exception("text is required")
+            from .utils import open_image
+            if image is not None:
+                ext = image.split(".")[-1]
+                image_data = open_image(image, ext=ext)
+                file_data["image_data"] = image_data
+            if video is not None:
+                # 判断是链接还是什么
+                ext = video.split(".")[-1]
+
+            response = self.llm_model.chat(content=text, file_data=file_data)
+            return response
 
     def init_rag(self):
         # 加载默认模型
@@ -188,7 +211,8 @@ class PolarisRAG:
     def _get_llm_model(self) -> Type[BaseLLM]:
         """获取所有LLM模型"""
         return {
-            "ZhipuLLM": ZhipuLLM
+            "ZhipuLLM": ZhipuLLM,
+            "OpenAILLM": OpenAILLM
         }
 
     def get_vector_storage_instance(self, key: str, **kwargs):
