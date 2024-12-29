@@ -29,3 +29,5 @@ DEFAULT_VECTOR_STORAGE = {
     "class_name": "MilvusDB",
     "class_param": {}
 }
+
+similarity = 0.5
