@@ -8,7 +8,7 @@ from typing import (
 import os
 import json
 import numpy as np
-from .const import MilvusDB_CONF
+from .const import MilvusDB_CONF, similarity
 from .base import BaseVectorDB, BaseEmbedding
 
 
@@ -132,8 +132,9 @@ class MilvusDB(BaseVectorDB):
         return insert_count
 
     def query(self, question: str, collection_name:str=None, limit: int=None,
-               search_params=None, output_fields=None, *args, **kwargs):
+               search_params=None, output_fields=None, similarity: float = similarity, *args, **kwargs):
         assert isinstance(self.client, MilvusClient), "client must be an instance of MilvusClient"
+        assert isinstance(similarity, float), "similarity must be a float"
         collection_name = self.collection_name if collection_name is None else collection_name
         if not self.is_exists_collection(collection_name):
             raise Exception("not this collection_name")
@@ -151,7 +152,13 @@ class MilvusDB(BaseVectorDB):
         retrieved_lines_with_distances = [
             (res["entity"]["text"], res["distance"]) for res in search_res[0]
         ]
-        context = "\n".join([line_with_distance[0] for line_with_distance in retrieved_lines_with_distances])
+        context = ""
+        for line_with_distance in retrieved_lines_with_distances:
+            if line_with_distance[1] < similarity:
+                continue
+            else:
+                context += line_with_distance[0] + "\n"
+        # context = "\n".join([line_with_distance[0] for line_with_distance in retrieved_lines_with_distances])
         return context
 
     def get_all_collections(self):
