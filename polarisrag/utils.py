@@ -167,3 +167,13 @@ def load_yaml(file_name: str) -> dict:
                 return None
     except yaml.YAMLError as e:
         return None
+
+from PIL import Image
+from io import StringIO, BytesIO
+import base64
+def open_image(file_name: str, ext:str):
+    img = Image.open(file_name)
+    imgByteArr = BytesIO()
+    img.save(imgByteArr, format=ext)
+    image_data = base64.b64encode(imgByteArr.getvalue()).decode("utf-8")
+    return image_data
