@@ -36,29 +36,32 @@ class FolderLoader:
 
     ext_names = ["md", "txt", "pdf"]
 
-    def get_all_chunk_content(self, max_len:int=600, cover_len:int=150):
+    def set_folder_path(self, folder_path: str):
+        if not os.path.exists(folder_path) and len(os.listdir(folder_path)) < 1:
+            raise ValueError("Folder path does not exist or is empty")
+        self.folder_path = folder_path
+
+    def get_all_chunk_content(self, folder_path: str = None, max_len:int=600, cover_len:int=150):
         docs = []
-        for ext, file_list in self.file_ext_dict.items():
-            doc_list = self.read_file_content(ext, file_list)
-            # 返回文件内容列表，现在要对文件内容进行切分
-            for content in doc_list:
-                chunks = self.split_documents(content)
-                docs.extend(chunks)
+        if folder_path is not None:
+            if isinstance(self.file_path_list, list):
+                self.file_path_list.append(self.__file_list(folder_path))
+            else:
+                self.file_path_list = self.__file_list(folder_path)
+        else:
+            for ext, file_list in self.file_ext_dict.items():
+                doc_list = self.read_file_content(ext, file_list)
+                # 返回文件内容列表，现在要对文件内容进行切分
+                for content in doc_list:
+                    chunks = self.split_documents(content)
+                    docs.extend(chunks)
         return docs
+
     def _split_text_by_length(self, text: str, length=100):
         chunks = []
         lines = text.split("\n")
         content = ''
         for line in lines:
-            # if numbered_line_pattern.match(line):
-            #     if content == '':
-            #         content += line
-            #     else:
-            #         content = content.replace(" ", "")
-            #         chunks.append(content)
-            #         content = line
-            # else:
-            #     content += line
             line = line.replace(" ", "")
             line = line.strip()
             if len(content) < length:
