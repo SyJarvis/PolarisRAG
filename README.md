@@ -56,6 +56,27 @@ print(rag.chat("什么是BERT"))
 print(rag.chat("如何下载BERT-base-chinese预训练模型"))
 ```
 
+Use polarisrag by loading a document in your working directory
+
+```python
+import os
+os.environ["ZHIPUAI_API_KEY"] = ""
+from polarisrag import PolarisRAG
+# 定义工作空间
+WORKING_DIR = "documents"
+rag = PolarisRAG(working_dir=WORKING_DIR)
+# 初始化rag,加载embedding、vector、llm
+rag.init_rag()
+# 加载文档到向量数据库
+rag.load_document()
+print(
+    rag.chat("什么是BERT")
+)
+print(
+    rag.chat("如何下载BERT-base-chinese预训练模型")
+)
+```
+
 Use PolarisRAG through a dictionary configuration
 
 ```python
@@ -90,12 +111,13 @@ print(result)
 result = rag.chat("如何下载BERT-base-chinese预训练模型")
 print(result)
 ```
-Introduce components for use
+Use polarisrag through the component
+
 ```python
 import os
 from polarisrag import PolarisRAG
 from polarisrag.embedding import ZhipuEmbedding
-from polarisrag.vector_database import MilvusDB
+from polarisrag.vector_db import MilvusDB
 from polarisrag.llm import ZhipuLLM
 from polarisrag.utils import FolderLoader
 
@@ -118,11 +140,39 @@ rag = PolarisRAG(
     llm_model=llm_model,
     is_memory=True
 )
-
 print(
     rag.chat("什么是BERT")
 )
 ```
+
+Use polarisrag through an existing vector database
+
+```python
+import os
+os.environ["ZHIPUAI_API_KEY"] = ""
+from polarisrag import PolarisRAG
+# 定义工作空间
+WORKING_DIR = "documents"
+# 向量数据库配置
+vector_conf = {
+    "class_name": "MilvusDB",
+    "class_param": {
+        # 数据库文件名，默认collection_name为default
+        "db_file": "milvus_data.db",
+    }
+}
+rag = PolarisRAG(working_dir=WORKING_DIR,
+                vector_storage=vector_conf)
+# 初始化rag,加载embedding、vector、llm
+rag.init_rag()
+print(
+    rag.chat("什么是BERT")
+)
+print(
+    rag.chat("如何下载BERT-base-chinese预训练模型")
+)
+```
+
 
 
 ## 🌟Citation
