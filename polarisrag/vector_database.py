@@ -65,14 +65,24 @@ class MilvusDB(BaseVectorDB):
     """
     向量数据库
     """
-    def __init__(self, config: Union[Dict, None]=None):
-        if config is None:
-            config = {}
+    def __init__(
+            self,
+            db_file: str = None,
+            host: str = "localhost",
+            port: int = 19530,
+            embedding_model: BaseEmbedding = None,
+            *args,
+            **kwargs):
+        config = kwargs
         self.db_file = config["db_file"] if "db_file" in config else MilvusDB_CONF["db_file"]
-        self.client = MilvusClient(uri=self.db_file)
+        if db_file is None:
+            self.uri = f"{host}:{port}"
+            self.client = MilvusClient(uri=self.uri)
+        else:
+            self.client = MilvusClient(uri=self.db_file)
         self.collection_name = config["collection_name"] if "collection_name" in config else MilvusDB_CONF["collection_name"]
-        self.embedding_model = config["embedding_model"] if "embedding_model" in config else None
-        if self.embedding_model is None:
+        self.embedding_model = config["embedding_model"] if "embedding_model" in config else embedding_model
+        if self.embedding_model is None and not isinstance(embedding_model, BaseEmbedding):
             raise Exception("embedding_model must be specified")
         self.embedding_dim = config["embedding_dim"] if "embedding_dim" in config else len(self.embedding_model.embed_text("this is a test"))
 
