@@ -158,13 +158,26 @@ class PolarisRAG:
         except Exception as e:
             raise Exception(f"init_rag error: {e}")
 
-    def load_document(self, *args, **kwargs):
-        pass
+    def load_document(self, folder_path: str = None, *args, **kwargs):
+        """加载工作目录下的所有资料"""
+        try:
+            if folder_path is None:
+                if os.path.exists(self.working_dir) and len(os.listdir(self.working_dir)) > 0:
+                    folder_path = self.working_dir
+                    self.file_loader.set_folder_path(folder_path)
+                else:
+                    raise Exception("working_dir is empty")
+            docs = self.file_loader.get_all_chunk_content()
+            self.vector_storage.insert(docs=docs)
+            return True
+        except Exception as e:
+            return False
 
     def insert(self, f:str):
         assert len(f) > 0, "f length must be greater than 0"
         docs = self.file_loader.split_documents(f)
         self.vector_storage.insert(docs=docs)
+        return True
 
     def load_conf(self, conf: Union[str, dict]):
         if isinstance(conf, str):
@@ -218,7 +231,7 @@ class PolarisRAG:
     def get_vector_storage_instance(self, key: str, **kwargs):
         storage_dict = self._get_vector_storage()
         if key in storage_dict:
-            return storage_dict[key](kwargs)
+            return storage_dict[key](**kwargs)
         else:
             raise Exception(f"Vector storage {key} not found")
 
