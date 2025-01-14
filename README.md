@@ -117,7 +117,7 @@ Use polarisrag through the component
 import os
 from polarisrag import PolarisRAG
 from polarisrag.embedding import ZhipuEmbedding
-from polarisrag.vector_db import MilvusDB
+from polarisrag.vector_database import MilvusDB
 from polarisrag.llm import ZhipuLLM
 from polarisrag.utils import FolderLoader
 
