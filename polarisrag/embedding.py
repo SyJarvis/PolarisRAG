@@ -1,114 +1,146 @@
 # -*- coding: utf-8 -*-
-from torch import Tensor
-from sentence_transformers import SentenceTransformer
+"""
+Embedding 模型实现
+
+基于 LangChain 1.0，专注于 OpenAI 生态
+"""
 import os
-from zhipuai import ZhipuAI
-from openai import OpenAI, Embedding
-from abc import ABC
-from typing import (
-    List,
-    Dict,
-    Type,
-    Any
-)
-import numpy as np
-from dataclasses import dataclass
+from typing import List, Optional, Any
+
+try:
+    from langchain_openai import OpenAIEmbeddings
+    from langchain_core.embeddings import Embeddings
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+    Embeddings = object
+
 from transformers import AutoTokenizer, AutoModel
 import torch
 
-from .base import BaseEmbedding
-class ZhipuEmbedding(BaseEmbedding):
+
+class OpenAIEmbedding:
+    """
+    OpenAI 嵌入模型
+
+    基于 LangChain 1.0 的 OpenAIEmbeddings
+    """
 
     def __init__(
         self,
-        api_key: str = None,
-        model_name="embedding-2"
+        api_key: Optional[str] = None,
+        model: str = "text-embedding-3-small",
+        base_url: Optional[str] = None
     ) -> None:
-        if api_key is None:
-            self.api_key = os.getenv("ZHIPUAI_API_KEY")
-        else:
-            self.api_key = api_key
-        self.model_name = model_name
-        self.embedding_model = ZhipuAI(api_key=self.api_key)
-        # 确保embedding可以使用
-        self.check()
+        """
+        初始化 OpenAI 嵌入模型
 
-    def embed_text(self, content: str = "", model_name=None):
-        if len(content) <= 0:
-            raise Exception("content length must be equal 1")
-        response = self.embedding_model.embeddings.create(
-            model=self.model_name,  # 填写需要调用的模型名称
-            input=content  # 填写需要计算的文本内容,
-        )
-        return response.data[0].embedding
+        Args:
+            api_key: OpenAI API 密钥，如果为 None 则从环境变量读取
+            model_name: 模型名称，默认 "text-embedding-3-small"
+            base_url: API 基础 URL，如果为 None 则从环境变量读取
+        """
+        if not LANGCHAIN_AVAILABLE:
+            raise RuntimeError(
+                "langchain 未安装，请运行: pip install langchain langchain-openai"
+            )
 
-    def check(self):
-        try:
-            self.embed_text("this is a test")
-            return True
-        except Exception as e:
-            raise Exception(e)
-
-    def embed_documents(self, content_list: List[str], model_name=None):
-        assert len(content_list) > 0, "content length must be equal 1"
-        content_vector_list = []
-        for content in content_list:
-            content_vector_list.append(self.embed_text(content=content))
-        return content_vector_list
-
-    def compare_v(cls, vector1: List[float], vector2: List[float]) -> float:
-        dot_product = np.dot(vector1, vector2)
-        magnitude = np.linalg.norm(vector1) * np.linalg.norm(vector2)
-        if not magnitude:
-            return 0
-        return dot_product / magnitude
-
-    def compare(self, text1: str, text2: str):
-        embed1 = self.embedding_model.embeddings.create(
-            model=self.model_name,  # 填写需要调用的模型名称
-            input=text1  # 填写需要计算的文本内容,
-        ).data[0].embedding
-        embed2 = self.embedding_model.embeddings.create(
-            model=self.model_name,  # 填写需要调用的模型名称
-            input=text2  # 填写需要计算的文本内容,
-        ).data[0].embedding
-        return np.dot(embed1, embed2) / (np.linalg.norm(embed1) * np.linalg.norm(embed2))
-
-
-class OpenAIEmbedding(BaseEmbedding):
-    """
-
-    """
-    def __init__(
-        self,
-        api_key: str = "",
-        model_name: str = "",
-        name: str = None
-    ) -> None:
+        # 获取 API 密钥
         if api_key:
             self.api_key = api_key
         else:
-            self.api_key = os.getenv("OPENAI_API_KEY")
-        self.model_name = model_name
-        self.name = name
+            self.api_key = os.getenv("EMBEDDING_API_KEY")
+            if self.api_key is None:
+                raise ValueError("EMBEDDING_API_KEY 未设置。请设置环境变量或传入 api_key 参数")
 
-        self.client = Embedding.create(
-            model="text-embedding-ada-002",
-        )
+        # 获取 base_url
+        if base_url:
+            self.base_url = base_url
+        else:
+            self.base_url = os.getenv("EMBEDDING_BASE_URL")
 
-    def embed_text(self, content: str) -> List[float]:
-        pass
+        # 设置模型名称
+        self.model_name = model
 
-    def embed_documents(self, contents: List[str]) -> List[List[float]]:
-        pass
+        # 创建 LangChain OpenAIEmbeddings 实例
+        params = {
+            "model": self.model_name,
+            "api_key": self.api_key
+        }
+
+        if self.base_url:
+            params["base_url"] = self.base_url
+
+        self.client = OpenAIEmbeddings(**params)
+
+    def embed_text(self, content: str, **kwargs) -> List[float]:
+        """
+        将单个文本转换为向量
+
+        Args:
+            content: 输入文本
+            **kwargs: 其他传递给 LangChain 的参数
+
+        Returns:
+            文本的向量表示
+        """
+        if not isinstance(content, str):
+            raise TypeError("content 必须是字符串类型")
+
+        # 使用 LangChain 的 embed_query 方法
+        result = self.client.embed_query(content, **kwargs)
+        return result
+
+    def embed_documents(self, contents: List[str], **kwargs) -> List[List[float]]:
+        """
+        将多个文本批量转换为向量
+
+        Args:
+            contents: 文本列表
+            **kwargs: 其他传递给 LangChain 的参数
+
+        Returns:
+            文本向量的列表
+        """
+        if not isinstance(contents, list):
+            raise TypeError("contents 必须是列表类型")
+
+        if len(contents) == 0:
+            raise ValueError("contents 列表不能为空")
+
+        # 使用 LangChain 的 embed_documents 方法
+        results = self.client.embed_documents(contents, **kwargs)
+        return results
+
+    def embed_query(self, text: str) -> List[float]:
+        """
+        兼容性方法：嵌入查询文本
+
+        Args:
+            text: 查询文本
+
+        Returns:
+            文本的向量表示
+        """
+        return self.embed_text(text)
 
 
-class HFEmbedding(BaseEmbedding, ABC):
+class HFEmbedding:
     """
-    huggingface_embedding
+    HuggingFace 嵌入模型
+
+    支持本地模型，用于需要本地部署的场景
     """
 
     def __init__(self, pretrain_dir: str = None, *inputs, **kwargs) -> None:
+        """
+        初始化 HuggingFace 嵌入模型
+
+        Args:
+            pretrain_dir: 预训练模型路径
+            *inputs: 额外位置参数
+            **kwargs: 额外关键字参数
+        """
         self.pretrained_model_path = pretrain_dir
         self.tokenizer = AutoTokenizer.from_pretrained(pretrain_dir, *inputs, **kwargs)
         self.model = AutoModel.from_pretrained(pretrain_dir, *inputs, **kwargs)
@@ -116,6 +148,13 @@ class HFEmbedding(BaseEmbedding, ABC):
     def embed_text(self, content: str, **kwargs) -> List[float]:
         """
         编码文本
+
+        Args:
+            content: 文本内容
+            **kwargs: 额外参数
+
+        Returns:
+            向量表示
         """
         if isinstance(content, str):
             contents = [content.strip()]
@@ -124,15 +163,29 @@ class HFEmbedding(BaseEmbedding, ABC):
 
         return self.__embedding(contents, **kwargs).tolist()[0]
 
-    def embed_documents(self, contents: List[str], **kwargs) -> Tensor:
+    def embed_documents(self, contents: List[str], **kwargs) -> List[List[float]]:
         """
         编码文档
-        """
-        return self.__embedding(contents, **kwargs)
 
-    def __embedding(self, contents: List[str], **kwargs) -> Tensor:
+        Args:
+            contents: 文本列表
+            **kwargs: 额外参数
+
+        Returns:
+            向量列表
         """
-        padding=True, truncation=True, return_tensors='pt'
+        return self.__embedding(contents, **kwargs).tolist()
+
+    def __embedding(self, contents: List[str], **kwargs):
+        """
+        内部嵌入方法
+
+        Args:
+            contents: 文本列表
+            **kwargs: 额外参数
+
+        Returns:
+            向量张量
         """
         encoded_input = self.tokenizer(contents, padding=True, truncation=True, return_tensors='pt')
         with torch.no_grad():
@@ -141,35 +194,43 @@ class HFEmbedding(BaseEmbedding, ABC):
         sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
         return sentence_embeddings
 
-    def compare(self, text: str, text2: str):
-        pass
 
-    def compare_v(self, vector: List[float], vector2: List[float]) -> float:
-        pass
+class ZhipuEmbedding:
+    """
+    Zhipu 嵌入模型（已移除）
 
-
-@dataclass
-class BGEEmbedding(BaseEmbedding):
+    v2.0 已移除 Zhipu 支持
+    如需使用，请使用 OpenAIEmbedding 或 LangChain 的对应组件
     """
 
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(
+            "ZhipuEmbedding 已在 v2.0 中移除。"
+            "请使用 OpenAIEmbedding 或 LangChain 的 OpenAIEmbeddings。"
+            "迁移指南请参考 docs/MIGRATION_GUIDE.md"
+        )
+
+
+class BGEEmbedding:
     """
-    def __init__(
-            self,
-            model_name_or_path: str = "BAAI/bge-small-en-v1.5"):
-        self.model_name_or_path = model_name_or_path
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    def init(self):
-        self.model = AutoModel.from_pretrained(self.model_name_or_path)
-        self.model.eval()
+    BGE 嵌入模型（已移除）
 
-    def embed_text(self, content: str) -> List[float]:
-        pass
+    v2.0 已移除 BGE 专用实现
+    如需使用，请使用 HFEmbedding 或 LangChain 的 HuggingFaceEmbeddings
+    """
 
-    def embed_documents(self, contents: List[str]) -> List[List[float]]:
-        pass
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(
+            "BGEEmbedding 已在 v2.0 中移除。"
+            "请使用 HFEmbedding 或 LangChain 的 HuggingFaceEmbeddings。"
+            "迁移指南请参考 docs/MIGRATION_GUIDE.md"
+        )
 
 
-
-
-
-
+__all__ = [
+    "OpenAIEmbedding",
+    "HFEmbedding",
+    # 以下类已移除
+    # "ZhipuEmbedding",
+    # "BGEEmbedding",
+]

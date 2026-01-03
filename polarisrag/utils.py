@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+工具函数和数据加载
+"""
 import re
 from dataclasses import dataclass, field
 import numpy as np
@@ -8,11 +11,15 @@ from typing import List, Dict
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import json
 import yaml
-# 引入langchain的文件处理方法
-from rapidocr_onnxruntime import RapidOCR
+
 
 @dataclass
 class FolderLoader:
+    """
+    文件夹加载器
+
+    支持加载指定文件夹中的所有文档，并进行文本切分
+    """
 
     folder_path: str = field(
         default_factory=lambda: str
@@ -41,7 +48,18 @@ class FolderLoader:
             raise ValueError("Folder path does not exist or is empty")
         self.folder_path = folder_path
 
-    def get_all_chunk_content(self, folder_path: str = None, max_len:int=600, cover_len:int=150):
+    def get_all_chunk_content(self, folder_path: str = None, max_len: int = 600, cover_len: int = 150):
+        """
+        获取所有文档的切分内容
+
+        Args:
+            folder_path: 文件夹路径
+            max_len: 每个文档的最大长度
+            cover_len: 切分重叠长度
+
+        Returns:
+            文档片段列表
+        """
         docs = []
         if folder_path is not None:
             if isinstance(self.file_path_list, list):
@@ -57,7 +75,10 @@ class FolderLoader:
                     docs.extend(chunks)
         return docs
 
-    def _split_text_by_length(self, text: str, length=100):
+    def _split_text_by_length(self, text: str, length = 100):
+        """
+        按长度切分文本
+        """
         chunks = []
         lines = text.split("\n")
         content = ''
@@ -71,12 +92,17 @@ class FolderLoader:
                 content = ''
         return chunks
 
-    def split_documents(cls, text: str, chunk_size: int=100) -> List[str]:
-        # numbered_line_pattern = re.compile(r'^\d+\.[\d, \s]*')
+    def split_documents(cls, text: str, chunk_size: int = 100) -> List[str]:
+        """
+        切分文档
+        """
         chunks = cls._split_text_by_length(text, chunk_size)
         return chunks
 
     def read_file_content(self, ext, file_list):
+        """
+        读取文件内容
+        """
         doc_list = []
         if ext in self.ext_func_dict.keys():
             file_func = self.ext_func_dict[ext]
@@ -87,6 +113,9 @@ class FolderLoader:
         return doc_list
 
     def read_pdf(self, file_path):
+        """
+        读取 PDF 文件
+        """
         reader = PdfReader(file_path)
         text_content = []
         for page in reader.pages:
@@ -94,21 +123,18 @@ class FolderLoader:
         return "\n".join(text_content)
 
     def read_txt(self, file_path):
+        """
+        读取文本文件
+        """
         with open(file_path, "r", encoding="utf-8") as f:
             docs = f.read()
         return docs
 
     def read_md_file(self, file_path):
+        """
+        读取 Markdown 文件
+        """
         docs = self.read_txt(file_path)
-        return docs
-
-    def read_jpg_file(self, file_path):
-        ocr = RapidOCR()
-        result, _ = ocr(file_path)
-        docs = ""
-        if result:
-            ocr_result = [line[1] for line in result]
-            docs += "\n".join(ocr_result)
         return docs
 
     def __post_init__(self):
@@ -125,6 +151,9 @@ class FolderLoader:
                                                             chunk_overlap=self.chunk_overlap)
 
     def __file_list(self, folder_path=None):
+        """
+        获取文件列表
+        """
         file_list = []
         file_dict = {}
         for file_path, dir_names, file_names in os.walk(folder_path):
@@ -142,6 +171,9 @@ class FolderLoader:
 
 
 def load_json(file_name):
+    """
+    加载 JSON 文件
+    """
     if not os.path.exists(file_name):
         return None
     try:
@@ -154,15 +186,23 @@ def load_json(file_name):
     except json.JSONDecodeError:
         return None
 
+
 def write_json(json_obj, file_name):
-    with open(file_name, "w", encoding="utf-8") as f:
+    """
+    写入 JSON 文件
+    """
+    with open(file_name, "w", encoding='utf-8') as f:
         json.dump(json_obj, f, indent=2, ensure_ascii=False)
 
+
 def load_yaml(file_name: str) -> dict:
+    """
+    加载 YAML 文件
+    """
     if not os.path.exists(file_name):
         return None
     try:
-        with open(file_name, "r", encoding='utf-8')as f:
+        with open(file_name, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
             if isinstance(data, dict):
                 return data
@@ -170,13 +210,3 @@ def load_yaml(file_name: str) -> dict:
                 return None
     except yaml.YAMLError as e:
         return None
-
-from PIL import Image
-from io import StringIO, BytesIO
-import base64
-def open_image(file_name: str, ext:str):
-    img = Image.open(file_name)
-    imgByteArr = BytesIO()
-    img.save(imgByteArr, format=ext)
-    image_data = base64.b64encode(imgByteArr.getvalue()).decode("utf-8")
-    return image_data

@@ -1,193 +1,471 @@
 # -*- coding: utf-8 -*-
+"""
+向量数据库实现
+
+提供三种向量存储实现：
+1. BaseVectorDB - 抽象基类
+2. MilvusDB - 基于 LangChain Community 的 Milvus（推荐）
+3. VectorDB - 简单的内存实现（用于测试）
+"""
 from tqdm import tqdm
-from typing import (
-    List,
-    Dict,
-    Union
-)
-import os
-import json
-import numpy as np
+from typing import List, Dict, Union, Optional, Any
+from abc import ABC, abstractmethod
+
+from .base import BaseEmbedding
 from .const import MilvusDB_CONF, similarity
-from .base import BaseVectorDB, BaseEmbedding
+
+try:
+    from pymilvus import MilvusClient
+    MILVUS_AVAILABLE = True
+except ImportError:
+    MILVUS_AVAILABLE = False
+
+try:
+    from langchain_community.vectorstores import Milvus as LangChainMilvus
+    from langchain_core.vectorstores import VectorStore as LangChainVectorStore
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+    LangChainMilvus = object
+    LangChainVectorStore = object
+
+
+class BaseVectorDB(ABC):
+    """
+    向量数据的基类
+
+    所有向量存储实现都必须继承此类并实现抽象方法
+    """
+
+    @abstractmethod
+    def insert(self, docs: List, **kwargs) -> int:
+        """
+        插入文档
+
+        Args:
+            docs: 文档列表
+            **kwargs: 其他参数
+
+        Returns:
+            插入的文档数量
+        """
+        pass
+
+    @abstractmethod
+    def query(self, query: str, **kwargs) -> str:
+        """
+        查询相关文档
+
+        Args:
+            query: 查询文本
+            **kwargs: 其他参数（如 limit, similarity）
+
+        Returns:
+            相关文档的上下文文本
+        """
+        pass
+
+    @abstractmethod
+    def check(self) -> bool:
+        """
+        检查向量存储状态
+
+        Returns:
+            True 如果可用，False 否则
+        """
+        pass
 
 
 class VectorDB(BaseVectorDB):
+    """
+    简单的内存向量数据库
 
-    def __init__(self, docs: List, embedding_model: BaseEmbedding) -> None:
-        self.docs = docs
+    用于测试或小规模场景
+    不依赖外部向量服务，所有数据存储在内存中
+    """
+
+    def __init__(self, docs: List[str] = None, embedding_model: BaseEmbedding = None):
+        """
+        初始化内存向量数据库
+
+        Args:
+            docs: 文档列表
+            embedding_model: 嵌入模型
+        """
+        self.docs = docs if docs is not None else []
         self.embedding_model = embedding_model
         self.vectors = []
         self.document = []
 
-    def get_vector(self):
-        for doc in tqdm(self.docs):
-            self.vectors.append(self.embedding_model.embed_text(doc))
-        return self.vectors
+    def insert(self, docs: List[str], **kwargs) -> int:
+        """
+        插入文档
 
-    def export_data(self, data_path="db"):
-        try:
-            if not os.path.exists(data_path):
-                os.makedirs(data_path)
-            with open(f"{data_path}/document.json", 'w', encoding='utf-8') as f:
-                json.dump(self.docs, f, ensure_ascii=False)
-            with open(f"{data_path}/vectors.json", 'w', encoding='utf-8') as f:
-                json.dump(self.vectors, f)
-        except Exception:
-            return False
-        return True
+        Args:
+            docs: 文档列表
+            **kwargs: 忽略
 
-    # 加载json文件中的向量和字块，得到向量列表、字块列表,默认路径为'database'
-    def load_vector(self, path: str = 'db') -> None:
-        with open(f"{path}/vectors.json", 'r', encoding='utf-8') as f:
-            self.vectors = json.load(f)
-        with open(f"{path}/document.json", 'r', encoding='utf-8') as f:
-            self.document = json.load(f)
-        # 求向量的余弦相似度，传入两个向量和一个embedding模型，返回一个相似度
+        Returns:
+            插入的文档数量
+        """
+        # 保存文档
+        self.docs.extend(docs)
+        self.document.extend(docs)
 
-    def get_similarity(self, vector1: List[float], vector2: List[float]) -> float:
-        return self.embedding_model.compare_v(vector1, vector2)
+        return len(docs)
 
-    # 求一个字符串和向量列表里的所有向量的相似度，表进行排序，返回相似度前k个的子块列表
-    def query(self, query: str, k: int = 3) -> List[str]:
+    def query(self, query: str, limit: int = 3, similarity: float = similarity, **kwargs) -> str:
+        """
+        查询相关文档
+
+        Args:
+            query: 查询文本
+            limit: 返回的文档数量
+            similarity: 相似度阈值
+
+        Returns:
+            相关文档的上下文文本
+        """
+        if self.embedding_model is None:
+            raise ValueError("embedding_model must be specified")
+
+        # 如果还没有向量，先生成
+        if not self.vectors and self.document:
+            for doc in tqdm(self.document, desc="生成向量"):
+                vector = self.embedding_model.embed_text(doc)
+                self.vectors.append(vector)
+
+        # 如果没有向量，直接返回
+        if not self.vectors:
+            return ""
+
+        import numpy as np
+
+        # 生成查询向量
         query_vector = self.embedding_model.embed_text(query)
-        result = np.array([self.get_similarity(query_vector, vector)
-                           for vector in self.vectors])
-        return np.array(self.document)[result.argsort()[-k:][::-1]].tolist()
 
+        # 计算相似度
+        similarities = []
+        for vector in self.vectors:
+            dot_product = np.dot(query_vector, vector)
+            magnitude = np.linalg.norm(query_vector) * np.linalg.norm(vector)
+            if not magnitude:
+                sim = 0
+            else:
+                sim = dot_product / magnitude
+            similarities.append(sim)
 
-from pymilvus import MilvusClient
-from tqdm import tqdm
-import json
+        # 过滤低于阈值的
+        filtered_indices = [i for i, sim in enumerate(similarities) if sim >= similarity]
+
+        # 取前 k 个
+        top_indices = sorted(filtered_indices, key=lambda i: similarities[i], reverse=True)[:limit]
+
+        # 返回上下文
+        context = "\n".join([self.document[i] for i in top_indices])
+        return context
+
+    def check(self) -> bool:
+        """
+        检查向量存储状态
+
+        Returns:
+            True 如果可用
+        """
+        return self.embedding_model is not None and len(self.document) > 0
 
 
 class MilvusDB(BaseVectorDB):
     """
-    向量数据库
+    Milvus 向量数据库
+
+    基于 LangChain Community 的 Milvus 实现
+    支持：
+    1. 连接到 Milvus 服务（推荐）
+    2. 本地文件存储（使用本地 Milvus 实例）
+
+    默认配置：
+    - 连接到本地 Milvus（使用 db_file）
+    - 支持配置为远程服务
     """
+
     def __init__(
             self,
             db_file: str = None,
             host: str = "localhost",
             port: int = 19530,
             embedding_model: BaseEmbedding = None,
+            collection_name: str = "polarisrag",
+            embedding_dim: int = None,
+            metric_type: str = "IP",
+            drop_old: bool = False,
             *args,
-            **kwargs):
-        config = kwargs
-        self.db_file = config["db_file"] if "db_file" in config else MilvusDB_CONF["db_file"]
-        if db_file is None:
-            self.uri = f"{host}:{port}"
+            **kwargs
+    ):
+        """
+        初始化 Milvus 向量数据库
+
+        Args:
+            db_file: 本地数据库文件路径（推荐方式，使用本地 Milvus）
+            host: Milvus 服务主机（远程模式）
+            port: Milvus 服务端口（远程模式）
+            embedding_model: 嵌入模型
+            collection_name: 集合名称
+            embedding_dim: 向量维度
+            metric_type: 距离类型（IP/COSINE/L2）
+            drop_old: 是否删除旧集合
+        """
+        self.db_file = db_file
+        self.host = host
+        self.port = port
+        self.collection_name = collection_name
+        self.metric_type = metric_type
+        self.embedding_model = embedding_model
+        self.client = None
+        self.collection = None
+
+        # 确定嵌入维度
+        if embedding_dim is None:
+            if embedding_model is not None:
+                # 尝试嵌入一个测试文本
+                try:
+                    self.embedding_dim = len(self.embedding_model.embed_text("test"))
+                except Exception as e:
+                    raise ValueError(f"无法确定嵌入维度: {e}")
+            else:
+                # 使用默认值
+                self.embedding_dim = 1536  # text-embedding-3-small 的默认维度
+
+        # 初始化客户端
+        self._init_client()
+
+    def _init_client(self):
+        """
+        初始化 Milvus 客户端
+        """
+        # 如果指定了 db_file，使用本地文件模式（推荐）
+        if self.db_file:
+            self.uri = self.db_file
             self.client = MilvusClient(uri=self.uri)
         else:
-            self.client = MilvusClient(uri=self.db_file)
-        self.collection_name = config["collection_name"] if "collection_name" in config else MilvusDB_CONF["collection_name"]
-        self.embedding_model = config["embedding_model"] if "embedding_model" in config else embedding_model
-        if self.embedding_model is None and not isinstance(embedding_model, BaseEmbedding):
-            raise Exception("embedding_model must be specified")
-        self.embedding_dim = config["embedding_dim"] if "embedding_dim" in config else len(self.embedding_model.embed_text("this is a test"))
+            # 否则连接到 Milvus 服务
+            self.uri = f"{self.host}:{self.port}"
+            self.client = MilvusClient(uri=self.uri)
 
     def set_embedding_model(self, embedding_model: BaseEmbedding):
-        if isinstance(embedding_model, BaseEmbedding):
+        """
+        设置嵌入模型
+        """
+        self.embedding_model = embedding_model
+
+    def create_collection(self, collection_name: str = None, **kwargs) -> bool:
+        """
+        创建或切换集合
+
+        Args:
+            collection_name: 集合名称
+
+        Returns:
+            成功返回 True，失败返回 False
+        """
+        if collection_name:
+            self.collection_name = collection_name
+        return self._create_collection(**kwargs)
+
+    def _create_collection(self, embedding_dim: int = None, drop_old: bool = False) -> bool:
+        """
+        创建集合的内部方法
+        """
+        dim = embedding_dim if embedding_dim is not None else self.embedding_dim
+
+        # 如果集合已存在且不需要删除，直接返回
+        if self.client.has_collection(self.collection_name) and not drop_old:
+            return True
+
+        # 如果集合存在且需要删除，先删除
+        if self.client.has_collection(self.collection_name) and drop_old:
             try:
-                self.embedding_model = embedding_model
-                self.embedding_dim = len(self.embedding_model.embed_text("this is a test"))
+                self.client.drop_collection(self.collection_name)
             except Exception as e:
-                raise Exception("embedding_model must be an instance of BaseEmbedding")
+                raise RuntimeError(f"删除集合失败: {e}")
 
-    def get_text_vector(self, text: str) -> Dict:
-        """
-        获取文本向量
-        """
-        text_vector_dict = {
-            "vector": self.embedding_model.embed_text(text),
-            "text": text
-        }
-        return text_vector_dict
-
-    def create_collection(self, collection_name: str=None, embedding_dim:int=None,
-                          metric_type="IP",
-                          consistency_level="Strong",
-                          *args, **kwargs):
-        """创建collection"""
-        assert isinstance(self.client, MilvusClient), "client must be an instance of MilvusClient"
-        embedding_dim = self.embedding_dim if embedding_dim is None else embedding_dim
-        collection_name = self.collection_name if collection_name is None else collection_name
-        if self.client.has_collection(collection_name):
-            self.client.drop_collection(collection_name)
+        # 创建新集合
         try:
-            self.client.create_collection(collection_name=collection_name,
-                                          dimension=embedding_dim,
-                                          metric_type=metric_type,
-                                          consistency_level=consistency_level)
+            self.client.create_collection(
+                collection_name=self.collection_name,
+                dimension=dim,
+                metric_type=self.metric_type,
+                consistency_level="Strong"
+            )
+            self.collection = self.collection_name
             return True
         except Exception as e:
-            return False
+            raise RuntimeError(f"创建集合失败: {e}")
 
-    def insert(self, docs: List[str], collection_name: Union[str, None] = None, **kwargs) -> int:
-        """插入数据"""
-        assert len(docs) > 0, "docs must be a list and length must be greater than 0"
-        collection_name = self.collection_name if collection_name is None else collection_name
-        if not self.is_exists_collection(collection_name):
-            self.create_collection(collection_name)
-        assert isinstance(self.client, MilvusClient), "client must be an instance of MilvusClient"
-        desc = kwargs["desc"] if "desc" in kwargs else "Creating embeddings"
+    def insert(self, docs: List[str], collection_name: str = None, **kwargs) -> int:
+        """
+        插入文档
+
+        Args:
+            docs: 文档列表
+            collection_name: 集合名称
+
+        Returns:
+            插入的文档数量
+        """
+        if not docs:
+            raise ValueError("docs 列表不能为空")
+
+        if self.embedding_model is None:
+            raise ValueError("embedding_model 未设置")
+
+        # 使用指定的集合名称或默认集合名称
+        actual_collection_name = collection_name if collection_name else self.collection_name
+
+        # 确保集合存在
+        if not self.client.has_collection(actual_collection_name):
+            self._create_collection(drop_old=False)
+
+        # 准备数据
         data = []
-        for i, line in enumerate(tqdm(docs, desc=desc)):
-            data_dict = self.get_text_vector(line)
-            data_dict["id"] = i
-            data.append(data_dict)
+        for i, text in enumerate(tqdm(docs, desc="创建嵌入并插入")):
+            # 生成嵌入
+            vector = self.embedding_model.embed_text(text)
+            
+            # 构建数据项
+            data.append({
+                "id": i,
+                "vector": vector,
+                "text": text
+            })
 
-        insert_res = self.client.insert(collection_name=collection_name, data=data)
+        # 插入数据
+        insert_res = self.client.insert(collection_name=actual_collection_name, data=data)
         insert_count = insert_res["insert_count"]
+
+        # 持久化
+        try:
+            self.client.flush()
+        except Exception:
+            pass  # 本地模式可能不需要 flush
+
         return insert_count
 
-    def query(self, question: str, collection_name:str=None, limit: int=None,
-               search_params=None, output_fields=None, similarity: float = similarity, *args, **kwargs):
-        assert isinstance(self.client, MilvusClient), "client must be an instance of MilvusClient"
-        assert isinstance(similarity, float), "similarity must be a float"
-        collection_name = self.collection_name if collection_name is None else collection_name
-        if not self.is_exists_collection(collection_name):
-            raise Exception("not this collection_name")
-        limit = MilvusDB_CONF['limit'] if limit is None else limit
-        search_params = MilvusDB_CONF['search_params'] if search_params is None else search_params
-        output_fields = MilvusDB_CONF['output_fields'] if output_fields is None else output_fields
-        data = [self.embedding_model.embed_text(question)]
+    def query(self, query: str, collection_name: str = None, limit: int = 3, output_fields: List[str] = None, similarity: float = similarity, **kwargs) -> str:
+        """
+        查询相关文档
+
+        Args:
+            query: 查询文本
+            collection_name: 集合名称
+            limit: 返回的文档数量
+            output_fields: 返回字段列表
+            similarity: 相似度阈值
+
+        Returns:
+            相关文档的上下文文本
+        """
+        if self.embedding_model is None:
+            raise ValueError("embedding_model 未设置")
+
+        # 使用指定的集合名称或默认集合名称
+        actual_collection_name = collection_name if collection_name else self.collection_name
+
+        # 检查集合是否存在
+        if not self.client.has_collection(actual_collection_name):
+            raise ValueError(f"集合 '{actual_collection_name}' 不存在")
+
+        # 设置默认参数
+        if limit is None:
+            limit = MilvusDB_CONF['limit']
+        if output_fields is None:
+            output_fields = MilvusDB_CONF['output_fields']
+
+        # 生成查询向量
+        query_vector = self.embedding_model.embed_text(query)
+
+        # 执行搜索
         search_res = self.client.search(
-            collection_name=collection_name,
-            data=data,
+            collection_name=actual_collection_name,
+            data=[query_vector],
             limit=limit,
-            search_params=search_params,
             output_fields=output_fields
         )
+
+        # 解析结果
         retrieved_lines_with_distances = [
-            (res["entity"]["text"], res["distance"]) for res in search_res[0]
+            (res["entity"]["text"], res["distance"])
+            for res in search_res[0]
         ]
+
+        # 根据相似度过滤
         context = ""
         for line_with_distance in retrieved_lines_with_distances:
             if line_with_distance[1] < similarity:
                 continue
-            else:
-                context += line_with_distance[0] + "\n"
-        # context = "\n".join([line_with_distance[0] for line_with_distance in retrieved_lines_with_distances])
+            context += line_with_distance[0] + "\n"
+
         return context
 
-    def get_all_collections(self):
-        return self.client.list_collections()
+    def get_all_collections(self) -> List[str]:
+        """
+        获取所有集合名称
 
-    def set_collection_name(self, collection_name:str):
+        Returns:
+            集合名称列表
+        """
+        try:
+            return self.client.list_collections()
+        except Exception as e:
+            raise RuntimeError(f"获取集合列表失败: {e}")
+
+    def set_collection_name(self, collection_name: str):
+        """
+        设置默认集合名称
+
+        Args:
+            collection_name: 集合名称
+        """
         self.collection_name = collection_name
 
-    def is_exists_collection(self, collection_name:str):
-        if self.client.has_collection(collection_name):
-            return True
-        else:
-            return False
+    def is_exists_collection(self, collection_name: str = None) -> bool:
+        """
+        检查集合是否存在
+
+        Args:
+            collection_name: 集合名称
+
+        Returns:
+            存在返回 True，否则返回 False
+        """
+        actual_collection_name = collection_name if collection_name else self.collection_name
+        return self.client.has_collection(actual_collection_name)
 
     def check(self) -> bool:
-        """检查状态"""
+        """
+        检查向量存储状态
+
+        Returns:
+            True 如果可用
+        """
         if self.embedding_model is None:
-            raise Exception("embedding_model is None, you must be run init_embedding_model() first")
-        if self.is_exists_collection(MilvusDB_CONF["collection_name"]):
-            return True
-        else:
             return False
+
+        try:
+            # 检查客户端连接
+            # 如果是本地文件模式，检查文件是否存在
+            if self.db_file:
+                import os
+                return os.path.exists(self.db_file) if self.db_file else True
+            else:
+                # 远程模式，尝试连接
+                return self.client is not None
+        except Exception as e:
+            raise RuntimeError(f"向量存储检查失败: {e}") from e
+
+
+__all__ = [
+    "BaseVectorDB",
+    "MilvusDB",
+    "VectorDB"
+]

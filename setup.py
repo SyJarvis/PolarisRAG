@@ -8,7 +8,7 @@ with open("README.md", mode="r", encoding="utf-8") as readme_file:
 
 setuptools.setup(
     name="PolarisRAG",
-    version="0.0.1",
+    version="0.1.0",
     description="PolarisRAG",
     long_description=readme,
     long_description_content_type="text/markdown",

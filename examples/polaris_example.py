@@ -1,33 +1,61 @@
 # -*- coding: utf-8 -*-
+"""
+PolarisRAG v2.0 基础使用示例
+
+使用基于 LangChain 1.0 的新 API
+"""
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(), override=True)
+
 from polarisrag import PolarisRAG
-WORKING_DIR = "documents"
-embedding_conf = {
-    "class_name": "HFEmbedding",
-    "class_param": {
-        "pretrain_dir": '/root/.cache/modelscope/hub/BAAI/bge-large-zh-v1___5'
+
+# 设置 API 密钥（如果未设置）
+import os
+if not os.getenv("LLM_API_KEY"):
+    print("警告: 未设置 LLM_API_KEY 环境变量")
+    print("请设置: export LLM_API_KEY='your-api-key'")
+
+print("="*80)
+print("PolarisRAG 基础示例")
+print("="*80 + "\n")
+
+# 方式 1: 使用字典配置
+print("方式 1: 使用字典配置")
+print("-" * 80)
+
+rag = PolarisRAG(
+    llm_model={
+        "model": "glm-4.7",
+        "temperature": 0.7
+    },
+    embedding_model={
+        "model": "Qwen/Qwen3-Embedding-8B"
+    },
+    vector_storage={
+        "type": "milvus",
+        "collection_name": "demo_collection",
+        "drop_old": False
     }
-}
-vector_conf = {
-    "class_name": "MilvusDB",
-    "class_param": {}
-}
-llm_model_conf = {
-    "class_name": "ZhipuLLM",
-    "class_param": {
-        "model": "glm-4-flash",
-        "is_memory": "True"
-    }
-}
-rag = PolarisRAG(working_dir=WORKING_DIR,
-                 embedding_model=embedding_conf,
-                 vector_storage=vector_conf,
-                 llm_model=llm_model_conf)
-rag.init_rag()
-with open("documents/test.txt", 'r') as f:
-    rag.insert(f.read())
-result = rag.chat("什么是BERT")
-print(result)
-result = rag.chat("如何下载BERT-base-chinese预训练模型")
-print(result)
+)
+
+# 加载文档
+print("加载文档...")
+rag.load_document("documents/test.txt")
+print("文档加载完成\n")
+
+# 初始化
+print("初始化 RAG 系统...")
+rag.init()
+print("初始化完成\n")
+
+# 查询
+query = "什么是BERT?"
+print(f"查询: {query}\n")
+
+result = rag.chat(query)
+
+print(f"回答:\n{result}\n")
+
+print("="*80)
+print("示例运行完成")
+print("="*80)

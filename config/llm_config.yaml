@@ -1,0 +1,17 @@
+# PolarisRAG v2.0 纯 LLM 模式配置文件
+
+mode: llm_only
+
+# LLM 配置
+llm:
+  model: gpt-4o-mini
+  temperature: 0.7
+  max_tokens: null
+
+# 工作目录（可选）
+working_dir: ./cache
+
+# LLM 提示词模板（可选）
+# 留空则使用默认模板
+llm_template: null
+
