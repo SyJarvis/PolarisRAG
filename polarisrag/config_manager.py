@@ -20,11 +20,11 @@ class ConfigManager:
         return {
             'llm_defaults': {
                 'default_backend': 'openai',
-                'default_model': 'glm-4.7'
+                'default_model': 'gpt-4o-mini'
             },
             'embedding_defaults': {
                 'default_backend': 'openai',
-                'default_model': 'Qwen/Qwen3-Embedding-8B'
+                'default_model': 'text-embedding-3-small'
             },
             'vector_db_defaults': {
                 'default_storage': 'milvus'
@@ -37,7 +37,7 @@ class ConfigManager:
                         'openai': {
                             'enabled': True,
                             'isdefault': True,
-                            'models': ['glm-4.7', 'gpt-4o', 'gpt-3.5-turbo']
+                            'models': ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo']
                         }
                     }
                 }
@@ -46,10 +46,10 @@ class ConfigManager:
                 'enabled': True,
                 'backend_type': 'openai',
                 'provider': 'openai',
-                'model': 'Qwen/Qwen3-Embedding-8B',
+                'model': 'text-embedding-3-small',
                 'backend_name': 'openai',
                 'backend_config': {
-                    'model': 'Qwen/Qwen3-Embedding-8B'
+                    'model': 'text-embedding-3-small'
                 }
             },
             'vector_db': {

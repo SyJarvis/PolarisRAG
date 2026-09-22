@@ -100,11 +100,10 @@ class Graph:
                 # 起始节点，从 initial_inputs 获取输入
                 inputs = initial_inputs.get(node_name, {})
             else:
-                # 非起始节点
-                inputs = {
-                    upstream_name: node_outputs[upstream_name] 
-                    for upstream_name in upstream_node_names
-                }
+                # 非起始节点：合并所有上游节点的输出（节点协议为扁平 dict）
+                inputs = {}
+                for upstream_name in upstream_node_names:
+                    inputs.update(node_outputs[upstream_name])
             logging.info(f"正在执行节点 '{node_name}'...")
             node_output = node.execute(inputs)
             node_outputs[node_name] = node_output

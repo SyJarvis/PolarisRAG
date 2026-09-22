@@ -87,6 +87,10 @@ class PolarisRAG:
         default_factory=lambda: DEFAULT_TEMPLATE
     )
 
+    working_dir: Optional[str] = field(
+        default=None
+    )
+
     node_adapter: InitVar[List] = None
 
     def __post_init__(self, node_adapter=None):
@@ -99,8 +103,9 @@ class PolarisRAG:
         else:
             self.node_adapter = node_adapter
         
-        # 初始化工作目录
-        self.working_dir = f"./polarisrag_cache_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}"
+        # 初始化工作目录（未指定时使用带时间戳的缓存目录）
+        if self.working_dir is None:
+            self.working_dir = f"./polarisrag_cache_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}"
         if not os.path.exists(self.working_dir):
             os.makedirs(self.working_dir)
         self.file_loader = FolderLoader(folder_path=self.working_dir)
@@ -108,6 +113,7 @@ class PolarisRAG:
         # 使用配置管理器
         if self.use_config_manager and CONFIG_MANAGER_AVAILABLE:
             self.config_manager = get_config_manager()
+            self.config = {}
             self._apply_new_config()
         else:
             # 如果提供了配置路径，加载配置
@@ -155,27 +161,40 @@ class PolarisRAG:
             self.multi_llm_consensus_strategy = self.config_manager.get_consensus_strategy()
         else:
             # 单 LLM 模式 - 初始化第一个 LLM 作为主 LLM
-            if llm_configs:
+            # 用户显式传入 LLM 时跳过（未传入时字段为 DEFAULT_LLM_MODEL 字典）
+            if llm_configs and self.llm_model is DEFAULT_LLM_MODEL:
                 main_llm_config = llm_configs[0]
                 from polarisrag.llm import OpenAILLM
-                self.llm_model = OpenAILLM(**main_llm_config['config_params'])
-                self.messages.append(SystemMessage(content="你是一个乐于帮助人的助手"))
+                try:
+                    self.llm_model = OpenAILLM(**main_llm_config['config_params'])
+                    self.messages.append(SystemMessage(content="你是一个乐于帮助人的助手"))
+                except Exception as e:
+                    print(f"警告: LLM 初始化失败: {e}，chat 功能不可用")
+                    self.llm_model = None
 
-        # 初始化嵌入模型
+        # 初始化嵌入模型（用户显式传入时跳过）
         embedding_config = self.config_manager.get_embedding_config()
-        if embedding_config:
+        if embedding_config and self.embedding_model is None:
             from polarisrag.embedding import OpenAIEmbedding
-            self.embedding_model = OpenAIEmbedding(**embedding_config['backend_config'])
+            try:
+                self.embedding_model = OpenAIEmbedding(**embedding_config['backend_config'])
+            except Exception as e:
+                print(f"警告: 嵌入模型初始化失败: {e}，RAG 检索功能不可用")
+                self.embedding_model = None
         
-        # 初始化向量数据库
+        # 初始化向量数据库（用户显式传入时跳过）
         vector_db_config = self.config_manager.get_vector_db_config()
-        if vector_db_config:
+        if vector_db_config and self.vector_storage is None:
             # 默认使用 MilvusDB 本地文件
             if 'db_file' not in vector_db_config:
                 vector_db_config['db_file'] = os.path.join(self.working_dir, 'milvus_data.db')
-            self.vector_storage = MilvusDB(**vector_db_config)
-            if self.embedding_model:
-                self.vector_storage.set_embedding_model(self.embedding_model)
+            try:
+                self.vector_storage = MilvusDB(**vector_db_config)
+                if self.embedding_model:
+                    self.vector_storage.set_embedding_model(self.embedding_model)
+            except Exception as e:
+                print(f"警告: 向量存储初始化失败: {e}，RAG 检索功能不可用")
+                self.vector_storage = None
 
     def _apply_config(self):
         """应用配置到实例"""
@@ -617,18 +636,18 @@ class PolarisRAG:
         如果这些组件已经实例化，则跳过初始化
         """
         try:
-            # 如果 embedding_model 已经是实例，跳过初始化
-            if self.embedding_model is not None:
+            # 如果 embedding_model 已经是实例（而非字典配置），跳过初始化
+            if not isinstance(self.embedding_model, dict):
                 if "embedding_model" in self.config:
                     del self.config["embedding_model"]
 
-            # 如果 vector_storage 已经是实例，跳过初始化
-            if self.vector_storage is not None:
+            # 如果 vector_storage 已经是实例（而非字典配置），跳过初始化
+            if not isinstance(self.vector_storage, dict):
                 if "vector_storage" in self.config:
                     del self.config["vector_storage"]
 
-            # 如果 llm_model 已经是实例，跳过初始化
-            if self.llm_model is not None:
+            # 如果 llm_model 已经是实例（而非字典配置），跳过初始化
+            if not isinstance(self.llm_model, dict):
                 if "llm_model" in self.config:
                     del self.config["llm_model"]
 

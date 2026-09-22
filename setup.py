@@ -22,7 +22,14 @@ setuptools.setup(
         "datasets==2.19.0",
         "accelerate>=0.20.1",
         "sentence_transformers",
-        "langchain"
+        "langchain",
+        "langchain-openai",
+        "langchain-text-splitters",
+        "pymilvus[milvus_lite]",
+        "PyPDF2",
+        "numpy",
+        "PyYAML",
+        "tqdm"
     ],
     extras_require={
         "finetune": ["deepspeed", "flash-attn"]
