@@ -1,4 +1,5 @@
 # PolarisRAG v2.0 RAG 模式配置文件
+# 注意：当前版本 ConfigManager 仅使用代码内默认配置，不读取本文件（预留，暂未生效）
 
 mode: rag
 

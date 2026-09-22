@@ -207,7 +207,6 @@ class ZhipuEmbedding:
         raise NotImplementedError(
             "ZhipuEmbedding 已在 v2.0 中移除。"
             "请使用 OpenAIEmbedding 或 LangChain 的 OpenAIEmbeddings。"
-            "迁移指南请参考 docs/MIGRATION_GUIDE.md"
         )
 
 
@@ -223,7 +222,6 @@ class BGEEmbedding:
         raise NotImplementedError(
             "BGEEmbedding 已在 v2.0 中移除。"
             "请使用 HFEmbedding 或 LangChain 的 HuggingFaceEmbeddings。"
-            "迁移指南请参考 docs/MIGRATION_GUIDE.md"
         )
 
 
