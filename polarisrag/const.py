@@ -50,7 +50,7 @@ MilvusDB_CONF = {
 }
 
 # 检索相似度阈值
-similarity = 0.5
+similarity = 0.3
 
 # LangChain 默认配置
 LANGCHAIN_CONFIG = {
