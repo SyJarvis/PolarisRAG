@@ -18,7 +18,7 @@ setuptools.setup(
     include_package_data=True,
     install_requires=[
         "torch>=1.6.0",
-        "transformers==4.44.2",
+        "transformers>=4.44.2,<5",
         "datasets==2.19.0",
         "accelerate>=0.20.1",
         "sentence_transformers",
