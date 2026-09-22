@@ -54,6 +54,8 @@ class OpenAILLM:
         # 获取 base_url
         if base_url:
             os.environ["LLM_BASE_URL"] = base_url
+        else:
+            base_url = os.getenv("LLM_BASE_URL")
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
