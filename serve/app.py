@@ -11,6 +11,8 @@ PolarisRAG Gradio 服务
     LLM_BASE_URL         可选，OpenAI 兼容服务地址
     EMBEDDING_API_KEY    使用 RAG 检索时必填
     EMBEDDING_BASE_URL   可选
+    LLM_MODEL            LLM 模型名，默认 gpt-4o-mini
+    EMBEDDING_MODEL      Embedding 模型名，默认 text-embedding-3-small
     GRADIO_SERVER_NAME   监听地址，默认 0.0.0.0
     GRADIO_PORT          端口，默认 7860
 """
@@ -20,10 +22,26 @@ load_dotenv(find_dotenv(), override=True)
 import os
 
 from polarisrag import PolarisRAG
+from polarisrag.llm import OpenAILLM
+from polarisrag.embedding import OpenAIEmbedding
+from polarisrag.vector_database import MilvusDB
 
 WORKING_DIR = "documents"
 
-rag = PolarisRAG(working_dir=WORKING_DIR)
+llm = OpenAILLM(model=os.getenv("LLM_MODEL", "gpt-4o-mini"))
+emb = OpenAIEmbedding(model=os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"))
+vec = MilvusDB(
+    db_file=os.path.join(WORKING_DIR, "milvus_data.db"),
+    embedding_model=emb,
+    collection_name="polaris_serve",
+)
+rag = PolarisRAG(
+    llm_model=llm,
+    embedding_model=emb,
+    vector_storage=vec,
+    working_dir=WORKING_DIR,
+    use_config_manager=False,
+)
 rag.init_rag()
 
 # RAG 模式：把工作目录下的语料（txt/md/pdf）载入向量库
