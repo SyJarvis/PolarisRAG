@@ -1,26 +1,41 @@
 # -*- coding: utf-8 -*-
-import os
-# 加载api_key
+"""
+字典配置示例：通过 class_name / class_param 配置组件，并复用已有本地向量库文件
+
+环境变量同 quickstart.py（LLM_API_KEY / EMBEDDING_API_KEY）
+"""
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(), override=True)
-os.environ["ZHIPUAI_API_KEY"] = ""
+
+import os
 
 from polarisrag import PolarisRAG
-# 定义工作空间
+
 WORKING_DIR = "documents"
+
+embedding_conf = {
+    "class_name": "OpenAIEmbedding",
+    "class_param": {}
+}
 vector_conf = {
     "class_name": "MilvusDB",
     "class_param": {
-        "db_file": "milvus_data.db"
+        # 本地向量库文件：首次运行会创建，之后可复用
+        "db_file": os.path.join(WORKING_DIR, "milvus_data.db"),
     }
 }
-rag = PolarisRAG(working_dir=WORKING_DIR,
-                 vector_storage=vector_conf)
-# 初始化rag,加载embedding、vector、llm
+llm_conf = {
+    "class_name": "OpenAILLM",
+    "class_param": {}
+}
+
+rag = PolarisRAG(
+    working_dir=WORKING_DIR,
+    use_config_manager=False,
+    embedding_model=embedding_conf,
+    vector_storage=vector_conf,
+    llm_model=llm_conf,
+)
 rag.init_rag()
-print(
-    rag.chat("什么是BERT")
-)
-print(
-    rag.chat("如何下载BERT-base-chinese预训练模型")
-)
+
+print(rag.chat("什么是BERT"))

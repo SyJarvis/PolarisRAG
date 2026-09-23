@@ -9,6 +9,7 @@ torchaudio==2.2.2
 torchvision==0.17.2
 zhipuai==2.1.4.20230814
 langchain==0.2.16
-transformers==4.44.2
-pymilvus
+transformers>=4.44.2,<5
+pymilvus[milvus_lite]
 chromadb
+PyPDF2

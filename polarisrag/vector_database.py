@@ -249,7 +249,7 @@ class MilvusDB(BaseVectorDB):
             self.client = MilvusClient(uri=self.uri)
         else:
             # 否则连接到 Milvus 服务
-            self.uri = f"{self.host}:{self.port}"
+            self.uri = f"http://{self.host}:{self.port}"
             self.client = MilvusClient(uri=self.uri)
 
     def set_embedding_model(self, embedding_model: BaseEmbedding):

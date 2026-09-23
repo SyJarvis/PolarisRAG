@@ -1,0 +1,10 @@
+BERT 是一种预训练的语言模型，由 Google 在 2018 年提出，全称为 Bidirectional Encoder Representations from Transformers。
+BERT 通过双向 Transformer 编码器在大规模无标注语料上进行预训练，能够理解上下文中词语的深层含义。
+
+BERT 的主要特点：
+1. 双向编码：同时利用词语左右两侧的上下文信息，相比单向语言模型能更准确地表征词义。
+2. 预训练加微调：先在海量语料上完成预训练，再在下游任务上用少量标注数据微调即可取得很好效果。
+3. 通用性强：在问答、文本分类、命名实体识别等众多自然语言理解任务上都达到了当时的最优水平。
+
+下载 BERT-base-chinese 预训练模型可以通过 Hugging Face 官方仓库（google-bert/bert-base-chinese）或 ModelScope 获取，
+使用 transformers 库的 from_pretrained 方法即可加载。
