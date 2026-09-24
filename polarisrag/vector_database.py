@@ -7,12 +7,24 @@
 2. MilvusDB - 基于 LangChain Community 的 Milvus（推荐）
 3. VectorDB - 简单的内存实现（用于测试）
 """
+import secrets
+import time
+
 from tqdm import tqdm
 from typing import List, Dict, Union, Optional, Any
 from abc import ABC, abstractmethod
 
 from .base import BaseEmbedding
 from .const import MilvusDB_CONF, similarity
+
+
+def _generate_id() -> int:
+    """生成全局唯一的 int64 主键：毫秒时间戳 << 21 | 21 位随机数。
+
+    用于替代 enumerate 递增 id，避免多次 insert 主键冲突。
+    同毫秒内理论容量 2^21；实际插入由 Milvus 主键约束兜底。
+    """
+    return (int(time.time() * 1000) << 21) | secrets.randbits(21)
 
 try:
     from pymilvus import MilvusClient
@@ -302,13 +314,14 @@ class MilvusDB(BaseVectorDB):
         except Exception as e:
             raise RuntimeError(f"创建集合失败: {e}")
 
-    def insert(self, docs: List[str], collection_name: str = None, **kwargs) -> int:
+    def insert(self, docs: List[str], collection_name: str = None, ids: Optional[List[int]] = None, **kwargs) -> int:
         """
         插入文档
 
         Args:
             docs: 文档列表
             collection_name: 集合名称
+            ids: 可选的预生成主键列表（与 docs 等长）；不传则内部生成
 
         Returns:
             插入的文档数量
@@ -319,6 +332,9 @@ class MilvusDB(BaseVectorDB):
         if self.embedding_model is None:
             raise ValueError("embedding_model 未设置")
 
+        if ids is not None and len(ids) != len(docs):
+            raise ValueError(f"ids 长度({len(ids)})必须与 docs 长度({len(docs)})一致")
+
         # 使用指定的集合名称或默认集合名称
         actual_collection_name = collection_name if collection_name else self.collection_name
 
@@ -328,13 +344,13 @@ class MilvusDB(BaseVectorDB):
 
         # 准备数据
         data = []
-        for i, text in enumerate(tqdm(docs, desc="创建嵌入并插入")):
+        for idx, text in enumerate(tqdm(docs, desc="创建嵌入并插入")):
             # 生成嵌入
             vector = self.embedding_model.embed_text(text)
-            
-            # 构建数据项
+
+            # 构建数据项（id 全局唯一，避免多次 insert 主键冲突）
             data.append({
-                "id": i,
+                "id": ids[idx] if ids is not None else _generate_id(),
                 "vector": vector,
                 "text": text
             })
@@ -406,6 +422,51 @@ class MilvusDB(BaseVectorDB):
             context += line_with_distance[0] + "\n"
 
         return context
+
+    def search(self, query: str, limit: int = 3, collection_name: str = None) -> List[Dict[str, Any]]:
+        """
+        结构化检索：返回 [{"id", "text", "distance"}]，不做相似度阈值过滤。
+
+        与 query() 的区别：不拼接文本、不过滤阈值、保留 id 与 distance，
+        供需要结构化结果（如 MCP 决策工具）的调用方使用。
+
+        Args:
+            query: 查询文本
+            limit: 返回条数
+            collection_name: 集合名称（默认用 self.collection_name）
+
+        Returns:
+            [{"id": int, "text": str, "distance": float}]；集合不存在时返回 []
+
+        Raises:
+            ValueError: embedding_model 未设置
+        """
+        if self.embedding_model is None:
+            raise ValueError("embedding_model 未设置")
+
+        actual_collection_name = collection_name if collection_name else self.collection_name
+
+        # 集合不存在时返回空结果（区别于 query() 的 raise）
+        if not self.client.has_collection(actual_collection_name):
+            return []
+
+        query_vector = self.embedding_model.embed_text(query)
+
+        search_res = self.client.search(
+            collection_name=actual_collection_name,
+            data=[query_vector],
+            limit=limit,
+            output_fields=["text"]
+        )
+
+        return [
+            {
+                "id": res["id"],
+                "text": res["entity"]["text"],
+                "distance": res["distance"],
+            }
+            for res in search_res[0]
+        ]
 
     def get_all_collections(self) -> List[str]:
         """
