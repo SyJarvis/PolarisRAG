@@ -1,7 +1,7 @@
 # PolarisRAG MCP Server 设计方案
 
-> 状态：P0/P1 已实现并通过验证（2026-09-20）；smart 模式与 HTTP 传输留待 P2/P3
-> 日期：2026-09-20
+> 状态：P0/P1 已实现并通过验证（2026-09-20）；Jev 决策路径已实现并真实验证（2026-09-21）；smart 模式与 HTTP 传输留待 P2/P3
+> 日期：2026-09-20（初版）/ 2026-09-21（Jev 决策、TOML 配置）
 > 协议基准：MCP `2026-07-28`，SDK 固定 `mcp==2.2.0`
 > 参考手册：`/Users/whoami/research/3dprinter/mcp-development-guide`（下称"MCP 手册"）
 
@@ -233,7 +233,26 @@ v1 暂不提供（决策编排已在服务端，Host 侧模板价值低）。P2 
 
 ## 5. 决策模型与内部工具
 
-### 5.1 决策 LLM
+### 5.0 决策架构（2026-09-21 更新）：Jev 状态机 + 生成 LLM
+
+已配置 `jev.api_key` 时，`rag_query` 走确定性状态机（`agent.py::_run_jev`）：
+
+```text
+SEARCH(原查询) → Jev 充分性判断(noul, 阈值 0.5)
+  ├─ noul ≥ 0.5 → 生成 LLM（仅基于片段，注入防护 prompt）→ 返回
+  ├─ noul < 0.5 且有剩余轮次 → LLM 生成替代检索词 → SEARCH → 循环
+  └─ 轮次耗尽 → 固定模板："片段不足以完整回答"（不调 LLM）
+无片段路径：换词一次仍空 → "库中没有找到相关内容"
+```
+
+- Jev 只做判断（choice/noul），生成一律由 OpenAI 兼容 LLM 负责
+- Jev 调用失败快速失败（AgentError），不静默降级
+- `tool_trace` 记录 `jev_sufficiency` 条目（noul 分数 + 片段数），可观测
+- 未配置 `jev.api_key` 时回退 §5.1 纯 LLM 工具循环，行为不变
+- 真实 key 验证（2026-09-21）：库内问题 noul=0.97 正确回答并引用来源；
+  库外问题 3 轮 noul=0.01 如实拒答，检索词自动改写两次（超导/离子阱→退相干综述）
+
+### 5.1 决策 LLM（回退路径）
 
 - 复用 `OpenAILLM` 的 OpenAI 兼容配置（`LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`）。
 - 新增 `bind_tools` 能力：底层为 LangChain `ChatOpenAI.bind_tools()`（**待验证**：
