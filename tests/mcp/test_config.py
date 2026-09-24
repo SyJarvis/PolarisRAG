@@ -8,6 +8,8 @@ def _base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_API_KEY", "sk-test")
     monkeypatch.setenv("EMBEDDING_API_KEY", "sk-emb")
     monkeypatch.setenv("POLARIS_MCP_HOME", str(tmp_path / "home"))
+    # 隔离本地 config/mcp.toml（开发者可能有真实配置文件）
+    monkeypatch.setenv("POLARIS_MCP_CONFIG", str(tmp_path / "no-such.toml"))
 
 
 def test_missing_keys_exit_2(monkeypatch, tmp_path, capsys):
@@ -15,6 +17,7 @@ def test_missing_keys_exit_2(monkeypatch, tmp_path, capsys):
     monkeypatch.delenv("EMBEDDING_API_KEY", raising=False)
     monkeypatch.delenv("POLARIS_FAKE_EMBEDDINGS", raising=False)
     monkeypatch.setenv("POLARIS_MCP_HOME", str(tmp_path / "h"))
+    monkeypatch.setenv("POLARIS_MCP_CONFIG", str(tmp_path / "no-such.toml"))
     with pytest.raises(SystemExit) as ei:
         load_config()
     assert ei.value.code == 2
@@ -27,6 +30,7 @@ def test_fake_mode_skips_key_check(monkeypatch, tmp_path):
     monkeypatch.delenv("EMBEDDING_API_KEY", raising=False)
     monkeypatch.setenv("POLARIS_FAKE_EMBEDDINGS", "1")
     monkeypatch.setenv("POLARIS_MCP_HOME", str(tmp_path / "h"))
+    monkeypatch.setenv("POLARIS_MCP_CONFIG", str(tmp_path / "no-such.toml"))
     cfg = load_config()
     assert cfg.test_mode is True
 
