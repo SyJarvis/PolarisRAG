@@ -39,6 +39,7 @@ def setup(monkeypatch):
         ag = RAGAgent.__new__(RAGAgent)
         ag.config = cfg
         ag.llm = fake_llm
+        ag.jev = None  # 未配置 Jev → 走纯 LLM 工具循环
         ag.tools = tools_results or {}
         return ag, fake_llm
 
