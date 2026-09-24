@@ -28,6 +28,11 @@ class Config:
     max_text_len: int
     smart_max_len: int
     max_iterations: int
+    # Jev 决策模型（可选；未配置时回退纯 LLM 决策循环）
+    jev_api_key: Optional[str] = None
+    jev_base_url: str = "https://api.typesafe.ai/v1/systemone"
+    jev_model: str = "jev-latest"
+    jev_timeout: float = 30.0
     test_mode: bool = field(default=False)
 
     @property
@@ -116,6 +121,32 @@ def _int_opt(
     return val
 
 
+def _float_opt(
+    toml_cfg: Dict[str, Any],
+    section: str,
+    key: str,
+    env_name: str,
+    default: float,
+    minimum: float,
+) -> float:
+    """浮点配置项：环境变量 > TOML > 默认值；校验类型与下限。"""
+    env = os.getenv(env_name)
+    if env is not None and env != "":
+        try:
+            val = float(env)
+        except ValueError:
+            raise ConfigError(f"{env_name} 必须是数字，收到: {env!r}")
+        if val < minimum:
+            raise ConfigError(f"{env_name} 必须 ≥ {minimum}，收到: {val}")
+        return val
+    val = _section(toml_cfg, section).get(key, default)
+    if isinstance(val, bool) or not isinstance(val, (int, float)):
+        raise ConfigError(f"配置 {section}.{key} 必须是数字，收到: {val!r}")
+    if val < minimum:
+        raise ConfigError(f"配置 {section}.{key} 必须 ≥ {minimum}，收到: {val}")
+    return float(val)
+
+
 def load_config() -> Config:
     """读取并校验配置；错误时打印到 stderr 并 exit(2)。"""
     errors: List[str] = []
@@ -140,6 +171,10 @@ def load_config() -> Config:
     ).resolve()
     home.mkdir(parents=True, exist_ok=True)
 
+    jev_base_url = _opt(
+        toml_cfg, "jev", "base_url", "JEV_BASE_URL",
+        "https://api.typesafe.ai/v1/systemone",
+    )
     cfg = Config(
         llm_api_key=llm_api_key,
         llm_base_url=_opt(toml_cfg, "llm", "base_url", "LLM_BASE_URL", None),
@@ -151,6 +186,12 @@ def load_config() -> Config:
         embedding_model=_opt(
             toml_cfg, "embedding", "model", "EMBEDDING_MODEL",
             "text-embedding-3-small",
+        ),
+        jev_api_key=_opt(toml_cfg, "jev", "api_key", "JEV_API_KEY", None),
+        jev_base_url=jev_base_url,
+        jev_model=_opt(toml_cfg, "jev", "model", "JEV_MODEL", "jev-latest"),
+        jev_timeout=_float_opt(
+            toml_cfg, "jev", "timeout", "JEV_TIMEOUT", 30.0, 1.0
         ),
         home=home,
         collection=_opt(

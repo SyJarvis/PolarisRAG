@@ -16,6 +16,14 @@ api_key = ""
 base_url = ""
 model = "text-embedding-3-small"
 
+[jev]
+# Jev（typesafe systemone）决策模型：判断"是否检索/片段是否充分/下一步动作"
+# 不设置 api_key 时回退到纯 LLM 决策循环（不推荐，仅兼容旧部署）
+api_key = ""
+base_url = "https://api.typesafe.ai/v1/systemone"
+model = "jev-latest"
+timeout = 30.0
+
 [server]
 # 工作目录（registry.json、milvus_data.db 所在）
 home = "./polaris_mcp"

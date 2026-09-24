@@ -354,6 +354,10 @@ def search(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
 | Embedding key | `embedding.api_key` | `EMBEDDING_API_KEY` | 是 | - | 向量化 |
 | Embedding 地址 | `embedding.base_url` | `EMBEDDING_BASE_URL` | 否 | - | |
 | Embedding 模型 | `embedding.model` | `EMBEDDING_MODEL` | 否 | `text-embedding-3-small` | |
+| Jev key | `jev.api_key` | `JEV_API_KEY` | 否* | - | Jev 决策模型（可选；未配置回退纯 LLM 决策） |
+| Jev 地址 | `jev.base_url` | `JEV_BASE_URL` | 否 | `https://api.typesafe.ai/v1/systemone` | typesafe systemone |
+| Jev 模型 | `jev.model` | `JEV_MODEL` | 否 | `jev-latest` | |
+| Jev 超时 | `jev.timeout` | `JEV_TIMEOUT` | 否 | `30.0` | 秒 |
 | 工作目录 | `server.home` | `POLARIS_MCP_HOME` | 否 | `./polaris_mcp` | registry、db 所在 |
 | 集合名 | `server.collection` | `POLARIS_MCP_COLLECTION` | 否 | `polaris_mcp` | Milvus 集合 |
 | 入库上限 | `server.max_text_len` | `POLARIS_MAX_TEXT_LEN` | 否 | `100000` | 单次入库字符数 |
