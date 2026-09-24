@@ -16,3 +16,4 @@ examples/documents
 .env
 *.db
 polaris_mcp/
+config/mcp.toml

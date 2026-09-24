@@ -59,6 +59,97 @@ def test_smart_gt_max_rejected(monkeypatch, tmp_path):
         load_config()
 
 
+# ---------- TOML 配置 ----------
+
+
+def _write_toml(monkeypatch, tmp_path, content: str):
+    cfg_path = tmp_path / "mcp.toml"
+    cfg_path.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("POLARIS_MCP_CONFIG", str(cfg_path))
+    return cfg_path
+
+
+def test_toml_provides_keys(monkeypatch, tmp_path):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("POLARIS_FAKE_EMBEDDINGS", raising=False)
+    _write_toml(monkeypatch, tmp_path, (
+        '[llm]\napi_key = "toml-llm-key"\nmodel = "toml-model"\n'
+        '[embedding]\napi_key = "toml-emb-key"\n'
+        '[server]\nhome = "%s"\ncollection = "toml_col"\n'
+        % (tmp_path / "toml_home")
+    ))
+    cfg = load_config()
+    assert cfg.llm_api_key == "toml-llm-key"
+    assert cfg.embedding_api_key == "toml-emb-key"
+    assert cfg.llm_model == "toml-model"
+    assert cfg.collection == "toml_col"
+    assert cfg.test_mode is False
+    assert (tmp_path / "toml_home").exists()
+
+
+def test_env_overrides_toml(monkeypatch, tmp_path):
+    _base_env(monkeypatch, tmp_path)
+    _write_toml(monkeypatch, tmp_path, (
+        '[llm]\napi_key = "toml-key"\n'
+        '[embedding]\napi_key = "toml-emb"\n'
+    ))
+    cfg = load_config()
+    assert cfg.llm_api_key == "sk-test"       # 环境变量优先
+    assert cfg.embedding_api_key == "sk-emb"
+
+
+def test_toml_empty_string_treated_as_unset(monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("POLARIS_FAKE_EMBEDDINGS", raising=False)
+    _write_toml(monkeypatch, tmp_path, (
+        '[llm]\napi_key = ""\n'
+        '[embedding]\napi_key = ""\n'
+    ))
+    with pytest.raises(SystemExit) as ei:
+        load_config()
+    assert ei.value.code == 2
+
+
+def test_toml_invalid_syntax(monkeypatch, tmp_path):
+    _base_env(monkeypatch, tmp_path)
+    _write_toml(monkeypatch, tmp_path, "[llm\nbroken =")
+    with pytest.raises(ConfigError):
+        load_config()
+
+
+def test_toml_int_type_check(monkeypatch, tmp_path):
+    _base_env(monkeypatch, tmp_path)
+    _write_toml(monkeypatch, tmp_path, (
+        '[llm]\napi_key = "k"\n'
+        '[embedding]\napi_key = "e"\n'
+        '[server]\nmax_iterations = "five"\n'
+    ))
+    with pytest.raises(ConfigError):
+        load_config()
+
+
+def test_toml_int_below_minimum(monkeypatch, tmp_path):
+    _base_env(monkeypatch, tmp_path)
+    _write_toml(monkeypatch, tmp_path, '[server]\nmax_iterations = 0\n')
+    with pytest.raises(ConfigError):
+        load_config()
+
+
+def test_toml_defaults_when_absent(monkeypatch, tmp_path):
+    """TOML 只给 key，其余项走代码默认值。"""
+    _write_toml(monkeypatch, tmp_path, (
+        '[llm]\napi_key = "k"\n'
+        '[embedding]\napi_key = "e"\n'
+    ))
+    monkeypatch.setenv("POLARIS_MCP_HOME", str(tmp_path / "env_home"))
+    cfg = load_config()
+    assert cfg.llm_model == "gpt-4o-mini"
+    assert cfg.max_iterations == 5
+    assert cfg.collection == "polaris_mcp"
+
+
 def test_defaults(monkeypatch, tmp_path):
     _base_env(monkeypatch, tmp_path)
     cfg = load_config()

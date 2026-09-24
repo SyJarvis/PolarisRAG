@@ -1,0 +1,31 @@
+# PolarisRAG MCP Server 配置模板
+#
+# 复制为 config/mcp.toml 并填入真实 key（mcp.toml 已被 gitignore）。
+# 优先级：环境变量 > 本文件 > 代码内默认值。
+# 文件路径可用环境变量 POLARIS_MCP_CONFIG 覆盖。
+
+[llm]
+# 生成答案的 LLM（OpenAI 兼容接口）
+api_key = ""
+base_url = ""            # 例 "https://llm.taihua.site/v1"，留空用官方地址
+model = "gpt-4o-mini"
+
+[embedding]
+# 向量化模型（OpenAI 兼容接口）
+api_key = ""
+base_url = ""
+model = "text-embedding-3-small"
+
+[server]
+# 工作目录（registry.json、milvus_data.db 所在）
+home = "./polaris_mcp"
+# Milvus 集合名
+collection = "polaris_mcp"
+# 单次入库文本上限（字符）
+max_text_len = 100000
+# smart 模式单次上限（须 ≤ max_text_len）
+smart_max_len = 20000
+# 决策循环轮数上限
+max_iterations = 5
+
+# 注意：POLARIS_FAKE_EMBEDDINGS 仅支持环境变量（测试开关，不进配置文件）

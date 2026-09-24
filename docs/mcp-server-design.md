@@ -337,22 +337,33 @@ def search(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
 
 ---
 
-## 8. 配置与环境变量
+## 8. 配置
 
-| 变量 | 必填 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `LLM_API_KEY` | 是 | - | 决策/整理 LLM |
-| `LLM_BASE_URL` | 否 | - | OpenAI 兼容地址 |
-| `LLM_MODEL` | 否 | `gpt-4o-mini` | 决策模型名 |
-| `EMBEDDING_API_KEY` | 是 | - | 向量化 |
-| `EMBEDDING_BASE_URL` | 否 | - | |
-| `EMBEDDING_MODEL` | 否 | `text-embedding-3-small` | |
-| `POLARIS_MCP_HOME` | 否 | `./polaris_mcp` | 工作目录（registry、db 文件所在） |
-| `POLARIS_MCP_COLLECTION` | 否 | `polaris_mcp` | Milvus 集合名 |
-| `POLARIS_MAX_TEXT_LEN` | 否 | `100000` | 单次入库文本上限（字符） |
-| `POLARIS_SMART_MAX_LEN` | 否 | `20000` | smart 模式单次上限 |
-| `POLARIS_MAX_ITERATIONS` | 否 | `5` | 决策循环上限 |
-| `POLARIS_FAKE_EMBEDDINGS` | 否 | `0` | **仅测试**：确定性哈希向量，供无 key 协议验证（§12） |
+配置来源优先级：**环境变量 > `config/mcp.toml` > 代码内默认值**。
+
+- TOML 使用标准库 `tomllib`（Python 3.11+），无第三方依赖
+- 配置文件路径可用 `POLARIS_MCP_CONFIG` 覆盖，默认 `config/mcp.toml`
+- 模板见 `config/mcp.example.toml`（`config/mcp.toml` 已 gitignore，真实 key 不入库）
+- 环境变量仅保留：测试开关 `POLARIS_FAKE_EMBEDDINGS`、配置路径 `POLARIS_MCP_CONFIG`，以及与 TOML 等名的覆盖项（见下表）
+
+| 配置项 | TOML 路径 | 环境变量覆盖 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| LLM key | `llm.api_key` | `LLM_API_KEY` | 是 | - | 生成答案 LLM |
+| LLM 地址 | `llm.base_url` | `LLM_BASE_URL` | 否 | - | OpenAI 兼容地址 |
+| LLM 模型 | `llm.model` | `LLM_MODEL` | 否 | `gpt-4o-mini` | 生成模型名 |
+| Embedding key | `embedding.api_key` | `EMBEDDING_API_KEY` | 是 | - | 向量化 |
+| Embedding 地址 | `embedding.base_url` | `EMBEDDING_BASE_URL` | 否 | - | |
+| Embedding 模型 | `embedding.model` | `EMBEDDING_MODEL` | 否 | `text-embedding-3-small` | |
+| 工作目录 | `server.home` | `POLARIS_MCP_HOME` | 否 | `./polaris_mcp` | registry、db 所在 |
+| 集合名 | `server.collection` | `POLARIS_MCP_COLLECTION` | 否 | `polaris_mcp` | Milvus 集合 |
+| 入库上限 | `server.max_text_len` | `POLARIS_MAX_TEXT_LEN` | 否 | `100000` | 单次入库字符数 |
+| smart 上限 | `server.smart_max_len` | `POLARIS_SMART_MAX_LEN` | 否 | `20000` | 须 ≤ max_text_len |
+| 循环上限 | `server.max_iterations` | `POLARIS_MAX_ITERATIONS` | 否 | `5` | 决策循环轮数 |
+
+| 仅环境变量 | 说明 |
+| --- | --- |
+| `POLARIS_FAKE_EMBEDDINGS` | **仅测试**：确定性哈希向量，供无 key 协议验证（§12），不进配置文件 |
+| `POLARIS_MCP_CONFIG` | TOML 配置文件路径 |
 
 **工程建议**：启动时统一校验（缺失/非法即打印可定位错误并退出非零，
 MCP 手册 08 章第 3 步）；`POLARIS_FAKE_EMBEDDINGS=1` 时跳过两个 API_KEY
