@@ -15,8 +15,12 @@ except ImportError:
     LANGCHAIN_AVAILABLE = False
     Embeddings = object
 
-from transformers import AutoTokenizer, AutoModel
-import torch
+try:
+    from transformers import AutoTokenizer, AutoModel
+    import torch
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
 
 
 class OpenAIEmbedding:
@@ -141,6 +145,10 @@ class HFEmbedding:
             *inputs: 额外位置参数
             **kwargs: 额外关键字参数
         """
+        if not TRANSFORMERS_AVAILABLE:
+            raise RuntimeError(
+                "transformers/torch 未安装，请运行: pip install transformers torch"
+            )
         self.pretrained_model_path = pretrain_dir
         self.tokenizer = AutoTokenizer.from_pretrained(pretrain_dir, *inputs, **kwargs)
         self.model = AutoModel.from_pretrained(pretrain_dir, *inputs, **kwargs)
