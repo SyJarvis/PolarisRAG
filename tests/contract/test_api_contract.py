@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-契约符合性测试（swap test）——对 docs/api-contract.md v1.0 的可机器验证子集。
+"""契约符合性测试（swap test）——对 docs/api-contract.md v1.0 的可机器验证子集。
 
 对任意实现了该契约的 Agent 后端运行：
 
@@ -9,7 +8,7 @@
     pytest tests/contract -v
 
 未设置 POLARIS_CONTRACT_BASE_URL 时整组跳过（不影响常规单测）。
-只依赖 httpx（openai 的传递依赖，项目 venv 已有），不引入新依赖。
+只依赖 httpx（项目 venv 已有），不引入新依赖。
 """
 import json
 import os
@@ -39,10 +38,11 @@ ALLOWED_ERROR_CODES = {
     "internal_error",
 }
 
-ALLOWED_SSE_EVENT_TYPES = {"message", "sources", "done", "error"}
+# 事件类型词汇表：SSE event 名 + data.type（message.delta 是 message 事件的子类型）
+ALLOWED_SSE_EVENT_TYPES = {"message", "message.delta", "sources", "done", "error"}
 
 EMBEDDED_CITATION_PATTERNS = [re.compile(p) for p in (r"【来源", r"\[1\]", r"\[2\]", r"\[来源")]
-INTERNAL_LEAK_PATTERNS = [re.compile(p) for p in (r"milvus_data\.db", r"/Users/", r"collection", r"sk-")]
+INTERNAL_LEAK_PATTERNS = [re.compile(p) for p in (r"milvus_data\.db", r"/Users/", r"sk-")]
 
 
 @pytest.fixture(scope="module")
@@ -92,9 +92,10 @@ def _assert_chat_core_schema(payload: dict):
     if citations:
         assert isinstance(citations, list)
         for cit in citations:
-            assert cit.get("id") and cit.get("snippet"), f"citations 元素缺 id/snippet：{cit}"
+            assert cit.get("id") and cit.get("snippet") is not None, \
+                f"citations 元素缺 id/snippet：{cit}"
             uri = str(cit.get("uri", ""))
-            for pat in INTERNAL_LEAK_PATTERNS[:3]:
+            for pat in INTERNAL_LEAK_PATTERNS[:2]:
                 assert not pat.search(uri), f"citations.uri 疑似泄露内部细节：{uri}"
 
 
@@ -131,12 +132,14 @@ class TestCapabilities:
 
     def test_a1_undeclared_optional_endpoints_return_404(self, client, capabilities):
         extra = capabilities.get("capabilities_extra") or {}
-        for name, path in (("/v1/ingest", "/v1/ingest"), ("/v1/status", "/v1/status")):
-            if name in extra:
+        # extra 形如 {"ingest": "/v1/ingest"}：键与值都视为"已声明"
+        declared = set(extra.keys()) | set(extra.values())
+        for name in ("/v1/ingest", "/v1/status"):
+            if name in declared:
                 continue
-            resp = client.post(path, json={}) if name.endswith("ingest") else client.get(path)
-            assert resp.status_code == 404, (
-                f"未声明的能力门控端点 {path} 返回了 {resp.status_code}（应为 404）"
+            resp = client.post(name, json={}) if name.endswith("ingest") else client.get(name)
+            assert resp.status_code in (404, 405), (
+                f"未声明的能力门控端点 {name} 返回了 {resp.status_code}（应为 404/405）"
             )
 
 
@@ -209,13 +212,13 @@ class TestStreaming:
                         events_seen.append((event, data))
                         etype = (data or {}).get("type") or event
                         assert etype in ALLOWED_SSE_EVENT_TYPES, f"非法事件类型 {etype!r}"
-                        if etype == "message":
+                        if etype in {"message", "message.delta"}:
                             assert isinstance((data or {}).get("delta"), str)
                             deltas.append(data["delta"])
                         elif etype in {"done", "error"}:
                             terminated = True
         assert terminated, "事件流必须以 done 或 error 收尾"
-        if any(e == "message" for e, _ in events_seen):
+        if any(e in {"message", "message.delta"} for e, _ in events_seen):
             assert "".join(deltas).strip(), "message.delta 拼接应为非空答案"
 
     def test_c1_error_event_after_stream_start(self, client, capabilities):

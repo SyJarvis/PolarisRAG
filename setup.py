@@ -35,5 +35,7 @@ setuptools.setup(
         "mcp": ["mcp==2.2.0"],
         # Web UI
         "serve": ["gradio<6"],
+        # REST API（契约实现，serve/api.py）
+        "api": ["fastapi>=0.110", "uvicorn>=0.29"],
     },
 )

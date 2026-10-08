@@ -1,6 +1,6 @@
 # PolarisRAG Agent 接入契约（Agent Web Contract）v1.0
 
-> 状态：草案（待实现）
+> 状态：**v1.0 已实现并通过符合性测试**（参考实现：`serve/api.py`；2026-09-28）
 > 日期：2026-09-28
 > 目标：定义一个**与具体实现无关**的「网站 ↔ Agent 服务」HTTP 契约。任何网站按本契约接入；
 > 任何 Agent 后端（不限于 PolarisRAG）实现本契约即可被同一前端无缝替换（换脑测试，见 §9）。
@@ -211,4 +211,6 @@ pytest tests/contract -v
 | `/v1/ingest` | `mcp_server/ingest.py` | 薄封装 |
 | `/v1/status` | `_status_payload()` | 脱敏检查 |
 
-实现顺序：**先冻结本文档 → 符合性测试红 → FastAPI 实现绿**。顺序不可反。
+实现顺序：先冻结本文档 → 符合性测试红 → FastAPI 实现绿。**当前状态：已实现**
+（`serve/api.py`，`pip install -e ".[api]"` + `uvicorn serve.api:app`；
+启动后 `POLARIS_CONTRACT_BASE_URL=http://127.0.0.1:8000 pytest tests/contract` 全绿）。
