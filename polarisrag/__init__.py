@@ -20,7 +20,7 @@ from .const import (
     DEFAULT_LLM_TEMPLATE
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Runke Zhong"
 __url__ = "https://github.com/SyJarvis/PolarisRAG"
 

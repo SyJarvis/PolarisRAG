@@ -1,15 +1,15 @@
+# 核心依赖（OpenAI 生态 + 本地向量库）
 langchain
-unstructured
-rapidocr_onnxruntime
-pdf2image
-pdfminer
-markdown
-torch==2.2.2
-torchaudio==2.2.2
-torchvision==0.17.2
-zhipuai==2.1.4.20230814
-langchain==0.2.16
+langchain-openai
+langchain-text-splitters
 transformers>=4.44.2,<5
 pymilvus[milvus_lite]
-chromadb
 PyPDF2
+numpy
+PyYAML
+tqdm
+python-dotenv
+mcp==2.2.0
+
+# 说明：torch/transformers 为可选（embedding.py 已改为可选导入）；
+# 仅使用 OpenAI 兼容 Embedding 服务时无需安装 torch，见 setup.py extras。

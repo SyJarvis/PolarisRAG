@@ -8,30 +8,32 @@ with open("README.md", mode="r", encoding="utf-8") as readme_file:
 
 setuptools.setup(
     name="PolarisRAG",
-    version="0.1.0",
+    version="0.2.0",
     description="PolarisRAG",
     long_description=readme,
     long_description_content_type="text/markdown",
     author_email="1755115828@qq.com",
     url="https://github.com/SyJarvis/PolarisRAG",
-    packages=find_packages(),
+    packages=find_packages(exclude=("tests", "tests.*", "mcp_server", "mcp_server.*")),
     include_package_data=True,
     install_requires=[
-        "torch>=1.6.0",
-        "transformers>=4.44.2,<5",
-        "datasets==2.19.0",
-        "accelerate>=0.20.1",
-        "sentence_transformers",
         "langchain",
         "langchain-openai",
         "langchain-text-splitters",
+        "transformers>=4.44.2,<5",
         "pymilvus[milvus_lite]",
         "PyPDF2",
         "numpy",
         "PyYAML",
-        "tqdm"
+        "tqdm",
+        "python-dotenv",
     ],
     extras_require={
-        "finetune": ["deepspeed", "flash-attn"]
-    }
+        # 本地 HF Embedding（离线/私有化部署）才需要 torch
+        "local-embedding": ["torch>=2.0.0", "sentence_transformers", "accelerate", "datasets"],
+        # MCP 服务器（mcp_server/）
+        "mcp": ["mcp==2.2.0"],
+        # Web UI
+        "serve": ["gradio<6"],
+    },
 )

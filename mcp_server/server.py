@@ -24,27 +24,39 @@ config: Config = load_config()
 
 _registry = SourceRegistry(config.registry_path)
 
-if config.test_mode:
-    _embedding = FakeEmbedding()
-else:
-    from polarisrag.embedding import OpenAIEmbedding
-    _embedding = OpenAIEmbedding(
-        api_key=config.embedding_api_key,
-        model=config.embedding_model,
-        base_url=config.embedding_base_url,
-    )
+_resources = None  # (vector_db, ingestor, agent)，懒加载
 
-_vector_db = MilvusDB(
-    db_file=str(config.db_file),
-    embedding_model=_embedding,
-    collection_name=config.collection,
-)
-_ingestor = Ingestor(config, _registry, _vector_db)
 
-if config.test_mode:
-    _agent = FakeAgent(_vector_db, _registry, config)
-else:
-    _agent = RAGAgent(config, _registry, _vector_db)
+def _get_resources():
+    """懒加载重量级组件（embedding 维度探测 / Milvus / Agent）。
+
+    import 本模块不再触发任何网络请求；首次工具调用才初始化。
+    上游 Embedding 服务不可用时仅该次调用报错，而非整个 server 无法启动
+    （stdio 场景 Host 拉起进程后工具列表仍可枚举，HTTP 场景服务可正常起监听）。
+    """
+    global _resources
+    if _resources is None:
+        if config.test_mode:
+            embedding = FakeEmbedding()
+        else:
+            from polarisrag.embedding import OpenAIEmbedding
+            embedding = OpenAIEmbedding(
+                api_key=config.embedding_api_key,
+                model=config.embedding_model,
+                base_url=config.embedding_base_url,
+            )
+        vector_db = MilvusDB(
+            db_file=str(config.db_file),
+            embedding_model=embedding,
+            collection_name=config.collection,
+        )
+        ingestor = Ingestor(config, _registry, vector_db)
+        if config.test_mode:
+            agent = FakeAgent(vector_db, _registry, config)
+        else:
+            agent = RAGAgent(config, _registry, vector_db)
+        _resources = (vector_db, ingestor, agent)
+    return _resources
 
 mcp = MCPServer("PolarisRAG")
 
@@ -74,7 +86,8 @@ def rag_query(query: str) -> dict:
         raise ValueError("query 不能为空")
     if len(query) > 2000:
         raise ValueError("query 长度不能超过 2000 字符")
-    return _agent.run(query)
+    _, _, agent = _get_resources()
+    return agent.run(query)
 
 
 @mcp.tool()
@@ -87,7 +100,8 @@ def rag_add_text(text: str, source_name: str = "", mode: str = "fast") -> dict:
         source_name: 可选来源名（≤200 字符）
         mode: "fast" 或 "smart"
     """
-    return _ingestor.add_text(text, source_name, mode)
+    _, ingestor, _ = _get_resources()
+    return ingestor.add_text(text, source_name, mode)
 
 
 @mcp.tool()
